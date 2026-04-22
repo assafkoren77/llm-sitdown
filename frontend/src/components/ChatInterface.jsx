@@ -137,7 +137,7 @@ export default function ChatInterface({
                                         )}
 
                                         {/* Stage 1: Council Grid Visualization */}
-                                        {(msg.loading?.stage1 || (msg.stage1 && !msg.stage2)) && (
+                                        {(msg.loading?.stage1 || msg.stage1) && (
                                             <div className="stage-container">
                                                 <div className="stage-header">
                                                     <h3>Stage 1: Council Deliberation</h3>
@@ -161,7 +161,7 @@ export default function ChatInterface({
                                         )}
 
                                         {/* Stage 1 Results (Accordion/List - kept for detail view) */}
-                                        {(msg.loading?.stage1 || (msg.stage1 && !msg.stage2)) ? (
+                                        {(msg.loading?.stage1 || msg.stage1) ? (
                                             msg.loading?.stage1 && !msg.stage1 ? (
                                                 <Stage1Skeleton />
                                             ) : msg.stage1 && (

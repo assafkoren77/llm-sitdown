@@ -107,25 +107,21 @@ class AnthropicProvider(LLMProvider):
 
     async def validate_key(self, api_key: str) -> Dict[str, Any]:
         try:
-            # Test with a cheap call
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    f"{self.BASE_URL}/messages",
+                response = await client.get(
+                    f"{self.BASE_URL}/models",
                     headers={
                         "x-api-key": api_key,
                         "anthropic-version": "2023-06-01",
-                        "content-type": "application/json"
-                    },
-                    json={
-                        "model": "claude-3-haiku-20240307",
-                        "messages": [{"role": "user", "content": "Hi"}],
-                        "max_tokens": 1
                     }
                 )
-                
+
                 if response.status_code == 200:
                     return {"success": True, "message": "API key is valid"}
-                else:
+                elif response.status_code == 401:
                     return {"success": False, "message": "Invalid API key"}
+                else:
+                    error_detail = response.json().get("error", {}).get("message", response.text)
+                    return {"success": False, "message": f"Anthropic error: {error_detail}"}
         except Exception as e:
             return {"success": False, "message": str(e)}

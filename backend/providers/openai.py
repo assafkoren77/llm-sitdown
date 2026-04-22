@@ -38,10 +38,14 @@ class OpenAIProvider(LLMProvider):
                 )
                 
                 if response.status_code != 200:
-                    return {
-                        "error": True, 
-                        "error_message": f"OpenAI API error: {response.status_code} - {response.text}"
-                    }
+                    error_body = response.text
+                    try:
+                        msg = response.json().get("error", {}).get("message", error_body)
+                        if "not a chat model" in msg:
+                            msg = f"'{model}' does not support the chat completions API. Remove it from your council and choose a GPT or o-series model instead."
+                    except Exception:
+                        msg = error_body
+                    return {"error": True, "error_message": f"OpenAI API error: {response.status_code} - {msg}"}
                     
                 data = response.json()
                 content = data["choices"][0]["message"]["content"]
@@ -67,14 +71,17 @@ class OpenAIProvider(LLMProvider):
                     
                 data = response.json()
                 models = []
-                # Filter for chat models
+                NON_CHAT_PATTERNS = [
+                    "audio", "realtime", "voice", "tts", "dall-e", "whisper",
+                    "embed", "transcribe", "sora", "batch", "computer-use",
+                    "search", "moderat", "instruct", "base",
+                ]
+                CHAT_PREFIXES = ("gpt-3.5", "gpt-4", "gpt-5", "o1", "o3", "o4")
                 for model in data.get("data", []):
                     mid = model["id"].lower()
-                    # Filter out non-chat models
-                    if any(x in mid for x in ["audio", "realtime", "voice", "tts", "dall-e", "whisper", "embed", "transcribe", "sora"]):
+                    if any(x in mid for x in NON_CHAT_PATTERNS):
                         continue
-                        
-                    if "gpt" in mid or "o1" in mid or "o3" in mid:
+                    if any(mid.startswith(p) for p in CHAT_PREFIXES):
                         models.append({
                             "id": f"openai:{model['id']}",
                             "name": f"{model['id']} [OpenAI]",
