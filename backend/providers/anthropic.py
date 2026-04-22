@@ -30,14 +30,19 @@ class AnthropicProvider(LLMProvider):
             else:
                 filtered_messages.append(msg)
         
+        # Claude 4.x models have deprecated the temperature parameter
+        MODELS_WITHOUT_TEMPERATURE = ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4")
+        supports_temperature = not any(model.startswith(p) for p in MODELS_WITHOUT_TEMPERATURE)
+
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 payload = {
                     "model": model,
                     "messages": filtered_messages,
                     "max_tokens": 4096,
-                    "temperature": temperature
                 }
+                if supports_temperature:
+                    payload["temperature"] = temperature
                 if system_message:
                     payload["system"] = system_message
                     
