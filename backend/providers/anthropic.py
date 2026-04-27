@@ -1,9 +1,13 @@
 """Anthropic provider implementation."""
 
+import asyncio
+import logging
 import httpx
 from typing import List, Dict, Any
 from .base import LLMProvider
 from ..settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 class AnthropicProvider(LLMProvider):
     """Anthropic API provider."""
@@ -18,9 +22,9 @@ class AnthropicProvider(LLMProvider):
         api_key = self._get_api_key()
         if not api_key:
             return {"error": True, "error_message": "Anthropic API key not configured"}
-            
+
         model = model_id.removeprefix("anthropic:")
-        
+
         # Convert messages to Anthropic format (system message is separate)
         system_message = ""
         filtered_messages = []
@@ -29,45 +33,76 @@ class AnthropicProvider(LLMProvider):
                 system_message = msg["content"]
             else:
                 filtered_messages.append(msg)
-        
+
         # Claude 4.x models have deprecated the temperature parameter
         MODELS_WITHOUT_TEMPERATURE = ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4")
         supports_temperature = not any(model.startswith(p) for p in MODELS_WITHOUT_TEMPERATURE)
 
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                payload = {
-                    "model": model,
-                    "messages": filtered_messages,
-                    "max_tokens": 4096,
-                }
-                if supports_temperature:
-                    payload["temperature"] = temperature
-                if system_message:
-                    payload["system"] = system_message
-                    
-                response = await client.post(
-                    f"{self.BASE_URL}/messages",
-                    headers={
-                        "x-api-key": api_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json"
-                    },
-                    json=payload
-                )
-                
+        payload = {
+            "model": model,
+            "messages": filtered_messages,
+            "max_tokens": 4096,
+        }
+        if supports_temperature:
+            payload["temperature"] = temperature
+        if system_message:
+            payload["system"] = system_message
+
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        f"{self.BASE_URL}/messages",
+                        headers=headers,
+                        json=payload,
+                    )
+
+                if response.status_code == 429:
+                    if attempt < max_retries:
+                        # Respect Anthropic's retry-after header if present
+                        retry_after_ms = response.headers.get("retry-after-ms")
+                        retry_after = response.headers.get("retry-after")
+                        if retry_after_ms:
+                            delay = int(retry_after_ms) / 1000.0
+                        elif retry_after:
+                            delay = float(retry_after)
+                        else:
+                            delay = min(60.0, 15.0 * (2 ** attempt))  # 15s, 30s, 60s
+                        logger.warning(
+                            f"Anthropic rate limit on {model}: waiting {delay:.1f}s "
+                            f"(attempt {attempt + 1}/{max_retries})"
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    return {
+                        "error": True,
+                        "error_message": f"Anthropic API error: {response.status_code} - {response.text}",
+                    }
+
                 if response.status_code != 200:
                     return {
-                        "error": True, 
-                        "error_message": f"Anthropic API error: {response.status_code} - {response.text}"
+                        "error": True,
+                        "error_message": f"Anthropic API error: {response.status_code} - {response.text}",
                     }
-                    
+
                 data = response.json()
                 content = data["content"][0]["text"]
                 return {"content": content, "error": False}
-                
-        except Exception as e:
-            return {"error": True, "error_message": str(e)}
+
+            except Exception as e:
+                if attempt < max_retries:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                return {"error": True, "error_message": str(e)}
+
+        return {"error": True, "error_message": "Anthropic: max retries exceeded"}
 
     async def get_models(self) -> List[Dict[str, Any]]:
         api_key = self._get_api_key()

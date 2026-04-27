@@ -1,10 +1,12 @@
 import StageTimer from './StageTimer';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import SearchContext from './SearchContext';
 import Stage1, { Stage1Skeleton } from './Stage1';
 import Stage2, { Stage2Skeleton } from './Stage2';
 import Stage3, { Stage3Skeleton } from './Stage3';
+import BrainstormView from './BrainstormView';
 import CouncilGrid from './CouncilGrid';
 import ExecutionModeToggle from './ExecutionModeToggle';
 import { api } from '../api';
@@ -14,6 +16,7 @@ export default function ChatInterface({
     conversation,
     onSendMessage,
     onAbort,
+    onRetry,
     isLoading,
     councilConfigured,
     onOpenSettings,
@@ -22,6 +25,10 @@ export default function ChatInterface({
     executionMode,
     onExecutionModeChange,
     searchProvider = 'duckduckgo',
+    brainstormSteering = null,
+    onBrainstormSteer,
+    userSteering = false,
+    onUserSteeringChange,
 }) {
     const [input, setInput] = useState('');
     const [webSearch, setWebSearch] = useState(false);
@@ -108,7 +115,7 @@ export default function ChatInterface({
                             <div className="message-content">
                                 {msg.role === 'user' ? (
                                     <div className="markdown-content">
-                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                                     </div>
                                 ) : (
                                     <>
@@ -199,6 +206,24 @@ export default function ChatInterface({
                                             />
                                         )}
 
+                                        {/* Brainstorm Mode */}
+                                        {(msg.loading?.brainstorm || (msg.brainstorm_turns && msg.brainstorm_turns.length > 0)) && (
+                                            <BrainstormView
+                                                turns={msg.brainstorm_turns || []}
+                                                summaries={msg.brainstorm_summaries || []}
+                                                status={msg.brainstorm_status}
+                                                final={msg.brainstorm_final}
+                                                loadingFinal={msg.loading?.brainstorm_final}
+                                                progress={msg.progress?.brainstorm}
+                                                loadingSummary={msg.loading?.brainstorm_summary}
+                                                startTime={msg.timers?.brainstormStart}
+                                                endTime={msg.timers?.brainstormEnd}
+                                                awaitingUserInput={brainstormSteering}
+                                                onUserInput={onBrainstormSteer}
+                                                userInputs={msg.brainstorm_user_inputs || []}
+                                            />
+                                        )}
+
                                         {/* Aborted Indicator */}
                                         {msg.aborted && (
                                             <div className="aborted-indicator">
@@ -207,6 +232,19 @@ export default function ChatInterface({
                                                     Generation stopped by user.
                                                     {msg.stage1 && !msg.stage3 && ' Partial results shown above.'}
                                                 </span>
+                                            </div>
+                                        )}
+
+                                        {/* Retry button — shown on error or abort for the last message */}
+                                        {!isLoading && index === conversation.messages.length - 1 && (
+                                            msg.aborted ||
+                                            msg.brainstorm_final?.error ||
+                                            msg.stage3?.error
+                                        ) && (
+                                            <div className="retry-container">
+                                                <button className="retry-button" onClick={onRetry}>
+                                                    ↺ Retry
+                                                </button>
                                             </div>
                                         )}
                                     </>
@@ -245,6 +283,22 @@ export default function ChatInterface({
                                 <span className="search-icon">🌐</span>
                                 {webSearch && <span className="search-label">Search On</span>}
                             </label>
+
+                            {executionMode === 'brainstorm' && (
+                                <label
+                                    className={`steer-toggle ${userSteering ? 'active' : ''}`}
+                                    title="Pause after each chairman summary so you can guide the discussion"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        className="search-checkbox"
+                                        checked={userSteering}
+                                        onChange={() => onUserSteeringChange(!userSteering)}
+                                    />
+                                    <span className="steer-icon">🧭</span>
+                                    <span className="steer-label">{userSteering ? 'Steering On' : 'Steer'}</span>
+                                </label>
+                            )}
 
                             <textarea
                                 className="message-input"

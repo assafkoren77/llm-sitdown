@@ -62,6 +62,56 @@ Your task as Chairman is to synthesize all of this information into a single, co
 
 Provide a clear, well-reasoned final answer that represents the council's collective wisdom:"""
 
+BRAINSTORM_TURN_PROMPT_DEFAULT = """You are participating in a structured brainstorming discussion about:
+
+{user_query}
+
+INITIAL INDEPENDENT ANSWERS:
+{initial_answers}
+
+MOST RECENT CYCLE'S DISCUSSION:
+{discussion_history}
+
+You are {model_name}. This is cycle {cycle} of the discussion.
+Build on the conversation above: share your updated perspective, note where you agree with others, and clarify any remaining disagreements. Be concise and direct."""
+
+BRAINSTORM_SUMMARY_PROMPT_DEFAULT = """You are the Chairman of an AI council deliberating on:
+
+{user_query}
+
+INITIAL INDEPENDENT ANSWERS:
+{initial_answers}
+
+PREVIOUS SUMMARIES:
+{previous_summaries}
+
+CURRENT CYCLE {cycle} DISCUSSION:
+{recent_discussion}
+
+Summarize the deliberation so far:
+1. **Points of Agreement** — where the models have genuinely converged
+2. **Remaining Disagreements** — where models still differ (do NOT rule on these; the discussion will continue)
+3. **Your Perspective** — share your own view on the open questions to help guide the next round
+
+End your response with exactly one of — choose YES only if the models themselves have reached genuine agreement, not merely because you have an opinion:
+CONSENSUS: YES
+CONSENSUS: NO"""
+
+BRAINSTORM_FINAL_PROMPT_DEFAULT = """You are the Chairman of an AI council that has completed a brainstorming discussion about:
+
+{user_query}
+
+INITIAL INDEPENDENT ANSWERS:
+{initial_answers}
+
+FULL DISCUSSION:
+{discussion_history}
+
+CHAIRMAN SUMMARIES:
+{summaries_text}
+
+The discussion has concluded ({reason}). Based on everything above, draft a clear and definitive final statement that represents the group's collective recommendation. Be authoritative and concise — this is the deliverable the user will read."""
+
 TITLE_PROMPT_DEFAULT = """Generate a very short title (3-5 words maximum) that summarizes the following question.
 The title should be concise and descriptive. Do not use quotes or punctuation in the title.
 

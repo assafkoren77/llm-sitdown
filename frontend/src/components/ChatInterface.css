@@ -419,6 +419,50 @@
   display: none;
 }
 
+/* Steering toggle — gold pill, always-visible label */
+.steer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.steer-toggle:hover {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.steer-toggle.active {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
+}
+
+.steer-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.steer-label {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: rgba(251, 191, 36, 0.75);
+  letter-spacing: 0.01em;
+}
+
+.steer-toggle.active .steer-label {
+  color: #fbbf24;
+}
+
 /* Scroll to Bottom */
 .scroll-bottom-btn {
   position: absolute;
@@ -577,6 +621,32 @@
   color: #fdba74;
   font-size: 14px;
   font-family: var(--font-ui);
+}
+
+.retry-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.retry-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  color: #60a5fa;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.retry-button:hover {
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(59, 130, 246, 0.5);
 }
 
 /* Chat Interface Styles */

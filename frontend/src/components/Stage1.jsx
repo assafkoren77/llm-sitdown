@@ -7,6 +7,7 @@ import './Stage1.css';
 
 export default function Stage1({ responses, startTime, endTime }) {
   const [activeTab, setActiveTab] = useState(0);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Reset activeTab if it becomes out of bounds
   useEffect(() => {
@@ -54,14 +55,19 @@ export default function Stage1({ responses, startTime, endTime }) {
 
   return (
     <div className="stage-container stage-1">
-      <div className="stage-header">
+      <div className="stage-header stage-header-toggle" onClick={() => setIsCollapsed(v => !v)} style={{ cursor: 'pointer' }}>
         <div className="stage-title">
+          <span className="stage-collapse-icon">{isCollapsed ? '▶' : '▼'}</span>
           <span className="stage-icon">💬</span>
           Stage 1: Individual Perspectives
+          {isCollapsed && (
+            <span className="stage-collapsed-pill">{responses.length} model{responses.length !== 1 ? 's' : ''}</span>
+          )}
         </div>
         <StageTimer startTime={startTime} endTime={endTime} label="Duration" />
       </div>
 
+      {isCollapsed ? null : <>
       {/* Avatar Tabs */}
       <div
         className="tabs"
@@ -152,6 +158,7 @@ export default function Stage1({ responses, startTime, endTime }) {
           </div>
         )}
       </div>
+      </>}
     </div>
   );
 }

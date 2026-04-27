@@ -162,6 +162,38 @@ body::after {
   border-radius: 0 8px 8px 0;
 }
 
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.9em;
+  overflow-x: auto;
+  display: block;
+}
+
+.markdown-content thead tr {
+  background: rgba(59, 130, 246, 0.12);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+}
+
+.markdown-content th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.markdown-content td {
+  padding: 7px 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.markdown-content tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 /* Global Button Reset */
 button {
   font-family: var(--font-ui);

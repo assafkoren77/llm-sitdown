@@ -31,6 +31,8 @@ export default function CouncilConfig({
     setCouncilTemperature,
     chairmanTemperature,
     setChairmanTemperature,
+    brainstormMaxCycles,
+    setBrainstormMaxCycles,
     // Data
     allModels, // Result of getAllAvailableModels()
     filteredModels, // Result of getFilteredAvailableModels()
@@ -472,6 +474,35 @@ export default function CouncilConfig({
                     </div>
                 </div>
 
+            </section>
+
+            <section className="settings-section">
+                <h3>Brainstorm Settings</h3>
+                <p className="section-description">
+                    Configure the Brainstorm execution mode where models discuss until reaching consensus.
+                </p>
+                <div className="subsection">
+                    <div className="heat-slider-header">
+                        <h4>Max Brainstorm Cycles</h4>
+                        <span className="heat-value">{brainstormMaxCycles}</span>
+                    </div>
+                    <div className="heat-slider-container">
+                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>2</span>
+                        <input
+                            type="range"
+                            min="2"
+                            max="10"
+                            step="1"
+                            value={brainstormMaxCycles}
+                            onChange={(e) => setBrainstormMaxCycles(parseInt(e.target.value, 10))}
+                            className="heat-slider"
+                        />
+                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>10</span>
+                    </div>
+                    <p className="heat-note" style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
+                        Chairman summarizes every 2 cycles and checks for consensus. Higher = more thorough but more API calls (~{brainstormMaxCycles} × members + {Math.floor(brainstormMaxCycles / 2)} summaries).
+                    </p>
+                </div>
             </section>
         </>
     );

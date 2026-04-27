@@ -24,6 +24,10 @@ function App() {
   const [searchProvider, setSearchProvider] = useState('duckduckgo');
   const [executionMode, setExecutionMode] = useState('full');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [lastSentMessage, setLastSentMessage] = useState(null);
+  const [brainstormSteering, setBrainstormSteering] = useState(null);
+  const [userSteering, setUserSteering] = useState(false);
+  const userSteeringRef = useRef(false);
   const abortControllerRef = useRef(null);
   const requestIdRef = useRef(0);
   const isInitialMount = useRef(true);
@@ -256,8 +260,30 @@ function App() {
     }
   };
 
+  const handleRetry = () => {
+    if (!lastSentMessage || isLoading) return;
+    // Drop the last failed user+assistant pair from the UI so the retry starts fresh
+    setCurrentConversation((prev) => {
+      if (!prev || prev.messages.length < 2) return prev;
+      return { ...prev, messages: prev.messages.slice(0, -2) };
+    });
+    handleSendMessage(lastSentMessage.content, lastSentMessage.webSearch);
+  };
+
+  const handleUserSteeringChange = (value) => {
+    userSteeringRef.current = value;
+    setUserSteering(value);
+  };
+
+  const handleBrainstormSteer = (userInput) => {
+    setBrainstormSteering(null);
+    api.sendBrainstormSteering(currentConversationId, userInput).catch(console.error);
+  };
+
   const handleSendMessage = async (content, webSearch) => {
     if (!currentConversationId) return;
+    setBrainstormSteering(null);
+    setLastSentMessage({ content, webSearch });
 
     // Assign unique ID to this request to prevent race conditions
     const currentRequestId = ++requestIdRef.current;
@@ -280,12 +306,20 @@ function App() {
         stage1: null,
         stage2: null,
         stage3: null,
+        brainstorm_turns: [],
+        brainstorm_summaries: [],
+        brainstorm_user_inputs: [],
+        brainstorm_status: null,
+        brainstorm_final: null,
         metadata: null,
         loading: {
           search: false,
           stage1: false,
           stage2: false,
           stage3: false,
+          brainstorm: false,
+          brainstorm_summary: false,
+          brainstorm_final: false,
         },
         timers: {
           stage1Start: null,
@@ -294,10 +328,13 @@ function App() {
           stage2End: null,
           stage3Start: null,
           stage3End: null,
+          brainstormStart: null,
+          brainstormEnd: null,
         },
         progress: {
           stage1: { count: 0, total: 0, currentModel: null },
-          stage2: { count: 0, total: 0, currentModel: null }
+          stage2: { count: 0, total: 0, currentModel: null },
+          brainstorm: { cycle: 0, maxCycles: 0, currentModel: null },
         }
       };
 
@@ -596,6 +633,157 @@ function App() {
               setIsLoading(false);
               break;
 
+            case 'brainstorm_start':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  loading: { ...lastMsg.loading, brainstorm: true },
+                  timers: { ...lastMsg.timers, brainstormStart: Date.now() },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_init':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  progress: {
+                    ...lastMsg.progress,
+                    brainstorm: { cycle: 0, maxCycles: event.max_cycles, currentModel: null },
+                  },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_turn_start':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  progress: {
+                    ...lastMsg.progress,
+                    brainstorm: {
+                      ...lastMsg.progress.brainstorm,
+                      cycle: event.cycle,
+                      currentModel: event.model,
+                    },
+                  },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_turn_complete':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  brainstorm_turns: [...(lastMsg.brainstorm_turns || []), event.data],
+                  progress: {
+                    ...lastMsg.progress,
+                    brainstorm: { ...lastMsg.progress.brainstorm, currentModel: null },
+                  },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_summary_start':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  loading: { ...lastMsg.loading, brainstorm_summary: true },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_summary_complete':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  brainstorm_summaries: [...(lastMsg.brainstorm_summaries || []), event.data],
+                  loading: { ...lastMsg.loading, brainstorm_summary: false },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_await_input':
+              if (userSteeringRef.current) {
+                setBrainstormSteering({ cycle: event.cycle });
+              } else {
+                // Steering is off — auto-skip immediately so discussion continues unpaused
+                api.sendBrainstormSteering(currentConversationId, '').catch(console.error);
+              }
+              break;
+
+            case 'brainstorm_user_input':
+              setBrainstormSteering(null);
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  brainstorm_user_inputs: [...(lastMsg.brainstorm_user_inputs || []), event.data],
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_complete':
+              setBrainstormSteering(null);
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  brainstorm_status: event.consensus_reached ? 'consensus' : 'max_cycles',
+                  loading: { ...lastMsg.loading, brainstorm: false, brainstorm_summary: false },
+                  timers: { ...lastMsg.timers, brainstormEnd: Date.now() },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_final_start':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  loading: { ...lastMsg.loading, brainstorm_final: true },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'brainstorm_final_complete':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  brainstorm_final: event.data,
+                  loading: { ...lastMsg.loading, brainstorm_final: false },
+                };
+                return { ...prev, messages };
+              });
+              setIsLoading(false);
+              break;
+
             case 'title_complete':
               // Reload conversations to get updated title
               loadConversations();
@@ -710,6 +898,7 @@ function App() {
         conversation={currentConversation}
         onSendMessage={handleSendMessage}
         onAbort={handleAbort}
+        onRetry={handleRetry}
         isLoading={isLoading}
         councilConfigured={councilConfigured}
         councilModels={councilModels}
@@ -718,6 +907,10 @@ function App() {
         onOpenSettings={handleOpenSettings}
         executionMode={executionMode}
         onExecutionModeChange={setExecutionMode}
+        brainstormSteering={brainstormSteering}
+        onBrainstormSteer={handleBrainstormSteer}
+        userSteering={userSteering}
+        onUserSteeringChange={handleUserSteeringChange}
       />
       {showSettings && (
         <Settings

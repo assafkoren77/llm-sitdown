@@ -224,8 +224,13 @@ def add_assistant_message(
     conversation_id: str,
     stage1: List[Dict[str, Any]],
     stage2: Optional[List[Dict[str, Any]]] = None,
-    stage3: Optional[Dict[str,Any]] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    stage3: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    brainstorm_turns: Optional[List[Dict[str, Any]]] = None,
+    brainstorm_summaries: Optional[List[Dict[str, Any]]] = None,
+    brainstorm_status: Optional[str] = None,
+    brainstorm_final: Optional[Dict[str, Any]] = None,
+    brainstorm_user_inputs: Optional[List[Dict[str, Any]]] = None,
 ):
     """
     Add an assistant message to a conversation.
@@ -248,12 +253,20 @@ def add_assistant_message(
         "stage1": stage1,
     }
     
-    # Only include stage2 and stage3 if they were executed
     if stage2 is not None:
         message["stage2"] = stage2
     if stage3 is not None:
         message["stage3"] = stage3
-
+    if brainstorm_turns is not None:
+        message["brainstorm_turns"] = brainstorm_turns
+    if brainstorm_summaries is not None:
+        message["brainstorm_summaries"] = brainstorm_summaries
+    if brainstorm_status is not None:
+        message["brainstorm_status"] = brainstorm_status
+    if brainstorm_final is not None:
+        message["brainstorm_final"] = brainstorm_final
+    if brainstorm_user_inputs is not None:
+        message["brainstorm_user_inputs"] = brainstorm_user_inputs
     if metadata:
         message["metadata"] = metadata
 

@@ -297,6 +297,22 @@ export const api = {
   },
 
   /**
+   * Send steering input for an active brainstorm discussion.
+   */
+  async sendBrainstormSteering(conversationId, userInput) {
+    const response = await fetch(
+      `${API_BASE}/api/conversations/${conversationId}/brainstorm/steer`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_input: userInput }),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to send steering input');
+    return response.json();
+  },
+
+  /**
    * Send a message and receive streaming updates.
    * @param {string} conversationId - The conversation ID
    * @param {Object} options - Message options

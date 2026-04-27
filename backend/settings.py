@@ -122,7 +122,10 @@ class Settings(BaseModel):
     stage3_prompt: str = STAGE3_PROMPT_DEFAULT
     
     # Execution Mode
-    execution_mode: str = "full"  # Default execution mode: 'chat_only', 'chat_ranking', 'full'
+    execution_mode: str = "full"  # Default execution mode: 'chat_only', 'chat_ranking', 'full', 'brainstorm'
+
+    # Brainstorm Mode
+    brainstorm_max_cycles: int = 4  # Max discussion cycles (2-10); chairman summarizes every 2
 
 
 def get_settings() -> Settings:
