@@ -57,7 +57,7 @@ export default function Sidebar({
         
         <div className="sidebar-header">
         <div className="sidebar-title-wrapper">
-          <div className="sidebar-title">LLM Council <span className="title-plus">Plus</span></div>
+          <div className="sidebar-title">LLM <span className="title-sitdown">Sitdown</span></div>
           <div className="sidebar-subtitle">Created by: Jacob Ben-David</div>
           <div className="sidebar-version">v0.2.1</div>
         </div>

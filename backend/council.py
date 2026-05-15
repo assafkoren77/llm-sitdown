@@ -586,6 +586,7 @@ async def brainstorm_discussion(
     stage1_results: List[Dict[str, Any]],
     request: Any = None,
     get_user_input=None,
+    get_final_decision=None,
 ) -> Any:
     """
     Brainstorm mode: round-robin discussion between council models until consensus.
@@ -602,8 +603,6 @@ async def brainstorm_discussion(
       {'type': 'done',             'consensus_reached': bool, 'final_cycle': N,
                                    'reason': 'consensus'|'max_cycles'|'no_models'}
     """
-    from .prompts import BRAINSTORM_TURN_PROMPT_DEFAULT, BRAINSTORM_SUMMARY_PROMPT_DEFAULT
-
     settings = get_settings()
     successful = [r for r in stage1_results if not r.get("error")]
     models = [r["model"] for r in successful]
@@ -620,7 +619,10 @@ async def brainstorm_discussion(
     initial_text = _build_brainstorm_initial_text(successful)
     pending_user_input: str = ""
 
-    for cycle in range(1, max_cycles + 1):
+    cycle = 0
+    consensus = False
+    while cycle < max_cycles:
+        cycle += 1
         yield {"type": "cycle_start", "cycle": cycle}
 
         # Consume any pending user steering input at the start of each cycle
@@ -640,7 +642,7 @@ async def brainstorm_discussion(
             # Only pass the previous cycle's turns to keep prompts compact
             discussion_text = _build_brainstorm_discussion_text(turns, recent_cycles=1)
             try:
-                prompt = BRAINSTORM_TURN_PROMPT_DEFAULT.format(
+                prompt = settings.brainstorm_turn_prompt.format(
                     user_query=user_query,
                     initial_answers=initial_text,
                     discussion_history=discussion_text,
@@ -693,7 +695,7 @@ async def brainstorm_discussion(
             recent_discussion = _build_brainstorm_discussion_text(turns, recent_cycles=1)
 
             try:
-                summary_prompt = BRAINSTORM_SUMMARY_PROMPT_DEFAULT.format(
+                summary_prompt = settings.brainstorm_summary_prompt.format(
                     user_query=user_query,
                     initial_answers=initial_text,
                     previous_summaries=previous_summaries_text,
@@ -735,16 +737,36 @@ async def brainstorm_discussion(
                 yield {"type": "done", "consensus_reached": True, "final_cycle": cycle, "reason": "consensus"}
                 return
 
+            if cycle == max_cycles and not consensus:
+                # Ask user whether to extend or finalize
+                if get_final_decision:
+                    yield {"type": "await_final_decision", "final_cycle": cycle}
+                    decision = await get_final_decision()
+                    if decision == "extend":
+                        max_cycles += 2
+                        yield {"type": "cycles_extended", "new_max_cycles": max_cycles}
+                        # Give user a chance to steer before the extended cycles start
+                        if get_user_input:
+                            yield {"type": "await_user_input", "cycle": cycle}
+                            user_input = await get_user_input(cycle)
+                            if user_input:
+                                pending_user_input = user_input
+                                yield {"type": "user_input_received", "input": user_input, "cycle": cycle}
+                        continue  # loop continues for 2 more cycles
+                    else:
+                        break  # finalize immediately
+                # else fall through to end of loop
+
             # Pause for user steering after each non-final, non-consensus chairman summary.
             # The backend always pauses; frontend auto-skips if steering checkbox is unchecked.
-            if get_user_input and cycle < max_cycles:
+            elif get_user_input and cycle < max_cycles:
                 yield {"type": "await_user_input", "cycle": cycle}
                 user_input = await get_user_input(cycle)
                 if user_input:
                     pending_user_input = user_input
                     yield {"type": "user_input_received", "input": user_input, "cycle": cycle}
 
-    yield {"type": "done", "consensus_reached": False, "final_cycle": max_cycles, "reason": "max_cycles"}
+    yield {"type": "done", "consensus_reached": False, "final_cycle": cycle, "reason": "max_cycles"}
 
 
 async def brainstorm_synthesize_final(
@@ -756,8 +778,6 @@ async def brainstorm_synthesize_final(
     user_inputs: List[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Chairman drafts the definitive final statement after a brainstorm discussion."""
-    from .prompts import BRAINSTORM_FINAL_PROMPT_DEFAULT
-
     settings = get_settings()
     initial_text = _build_brainstorm_initial_text(stage1_results)
     discussion_text = _build_brainstorm_discussion_text(turns)
@@ -770,7 +790,7 @@ async def brainstorm_synthesize_final(
     reason_label = "consensus reached" if reason == "consensus" else "maximum discussion cycles reached"
 
     try:
-        prompt = BRAINSTORM_FINAL_PROMPT_DEFAULT.format(
+        prompt = settings.brainstorm_final_prompt.format(
             user_query=user_query,
             initial_answers=initial_text,
             discussion_history=discussion_text,
@@ -805,6 +825,52 @@ async def brainstorm_synthesize_final(
     except Exception as e:
         logger.error(f"Error in brainstorm final synthesis: {e}")
         return {"model": chairman, "response": f"Error generating final statement: {e}", "error": True}
+
+
+async def chairman_followup(
+    user_message: str,
+    brainstorm_context: Dict[str, Any],
+    chat_history: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Chairman responds to a follow-up question with full brainstorm context."""
+    settings = get_settings()
+    chairman = get_chairman_model()
+
+    final_response = brainstorm_context.get("final_response", "")
+    user_query = brainstorm_context.get("user_query", "")
+    summaries = brainstorm_context.get("summaries", [])
+
+    summaries_text = "\n\n".join(
+        f"[After cycle {s['cycle']}]: {s.get('summary', '')}"
+        for s in summaries
+    ) or "(No summaries available)"
+
+    system_prompt = (
+        f"You are the Chairman of an LLM Council. You previously led a multi-model brainstorm discussion "
+        f"on the following topic and issued a final statement. A user is now asking you a follow-up question.\n\n"
+        f"ORIGINAL TOPIC: {user_query}\n\n"
+        f"DISCUSSION SUMMARIES:\n{summaries_text}\n\n"
+        f"YOUR FINAL STATEMENT:\n{final_response}\n\n"
+        f"Answer the follow-up question thoughtfully, drawing on the full context of the discussion above."
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for entry in chat_history:
+        role = "assistant" if entry.get("role") == "chairman" else "user"
+        messages.append({"role": role, "content": entry.get("content", "")})
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        result = await query_model(chairman, messages, temperature=settings.chairman_temperature)
+        if result.get("error"):
+            return {"model": chairman, "response": f"Error: {result.get('error_message', 'Unknown error')}", "error": True}
+        content = result.get("content", "") or ""
+        if not isinstance(content, str):
+            content = str(content)
+        return {"model": chairman, "response": content, "error": False}
+    except Exception as e:
+        logger.error(f"Error in chairman followup: {e}")
+        return {"model": chairman, "response": f"Error generating response: {e}", "error": True}
 
 
 async def generate_conversation_title(user_query: str) -> str:

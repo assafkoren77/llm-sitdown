@@ -1,18 +1,15 @@
-/* Sidebar — Council Chamber */
+/* Sidebar */
 
 .sidebar {
   width: 280px;
   height: 100%;
-  background: var(--bg-sidebar);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid var(--border-glass);
+  background: var(--bg-dark);
+  border-right: 0.5px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   transition: transform 0.3s ease;
   z-index: 20;
   flex-shrink: 0;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
 }
 
 /* Header Area */
@@ -21,7 +18,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .sidebar-title-wrapper {
@@ -43,7 +40,6 @@
   font-size: 11px;
   font-weight: 400;
   color: var(--text-muted);
-  opacity: 0.7;
 }
 
 .sidebar-version {
@@ -51,12 +47,12 @@
   font-size: 10px;
   font-weight: 500;
   color: var(--accent-primary);
-  opacity: 0.6;
+  opacity: 0.7;
   margin-top: 2px;
 }
 
-.title-plus {
-  background: linear-gradient(135deg, #60a5fa 0%, #22d3ee 100%);
+.title-sitdown {
+  background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -69,9 +65,9 @@
 }
 
 .icon-button {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  color: var(--accent-primary);
   width: 36px;
   height: 36px;
   border-radius: 10px;
@@ -84,30 +80,29 @@
 }
 
 .icon-button:hover {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: #3b82f6;
-  color: #93c5fd;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+  background: rgba(37, 99, 235, 0.12);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 .icon-button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* New Council Button Section */
+/* New Discussion Button */
 .sidebar-actions {
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .new-council-btn {
   width: 100%;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  border: 1px solid rgba(59, 130, 246, 0.4);
+  background: var(--accent-primary);
+  border: none;
   color: white;
   padding: 14px 20px;
-  border-radius: 14px;
+  border-radius: 12px;
   font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 600;
@@ -116,18 +111,18 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.25);
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .new-council-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35);
-  border-color: rgba(59, 130, 246, 0.6);
+  background: #1d4ed8;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+  transform: translateY(-1px);
 }
 
 .new-council-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -142,15 +137,15 @@
 
 /* Search Input */
 .sidebar-search {
-  padding: 0 16px 16px;
+  padding: 12px 16px 16px;
   position: relative;
 }
 
 .search-input {
   width: 100%;
-  padding: 10px 32px 10px 12px;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid var(--border-glass);
+  padding: 9px 32px 9px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);
   font-family: var(--font-ui);
@@ -166,7 +161,7 @@
 .search-input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .search-clear {
@@ -182,44 +177,40 @@
   font-size: 16px;
   line-height: 1;
   border-radius: 4px;
-  transition: color 0.2s, background 0.2s;
+  transition: color 0.2s;
 }
 
 .search-clear:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Conversation List */
 .conversation-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
 }
 
 .conversation-item {
-  background: rgba(30, 41, 59, 0.35);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-glass);
-  border-radius: 12px;
-  padding: 14px 16px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 12px;
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .conversation-item:hover {
-  background: rgba(30, 41, 59, 0.55);
-  border-color: rgba(59, 130, 246, 0.25);
-  transform: translateX(4px);
+  background: var(--bg-elevated);
+  border-color: var(--border-color);
 }
 
 .conversation-item.active {
-  background: var(--accent-primary-dim);
-  border-color: rgba(59, 130, 246, 0.45);
-  box-shadow: 0 0 24px rgba(59, 130, 246, 0.18);
+  background: var(--bg-elevated);
+  border-color: rgba(37, 99, 235, 0.25);
 }
 
 .sidebar-empty-state {
@@ -230,10 +221,9 @@
 }
 
 .conversation-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #e2e8f0;
-  /* Force slate-200 */
+  color: var(--text-primary);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -246,7 +236,7 @@
   align-items: center;
   font-size: 11px;
   color: var(--text-muted);
-  height: 24px;
+  height: 20px;
 }
 
 .delete-btn {
@@ -265,8 +255,8 @@
 }
 
 .delete-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
 }
 
 .delete-confirm {
@@ -287,28 +277,26 @@
 }
 
 .confirm-yes-btn {
-  color: #10b981;
+  color: #059669;
 }
 
 .confirm-yes-btn:hover {
-  background: rgba(16, 185, 129, 0.2);
-  color: #10b981;
+  background: rgba(5, 150, 105, 0.1);
 }
 
 .confirm-no-btn {
-  color: #ef4444;
+  color: #dc2626;
 }
 
 .confirm-no-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  background: rgba(220, 38, 38, 0.1);
 }
 
 /* Stop Generation Button */
 .stop-generation-btn.small {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #dc2626;
   padding: 3px 10px;
   font-size: 11px;
   font-weight: 600;
@@ -323,10 +311,8 @@
 }
 
 .stop-generation-btn.small:hover {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: #ef4444;
-  color: #fca5a5;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #dc2626;
 }
 
 /* Sidebar close button (mobile only) */
@@ -337,8 +323,8 @@
   right: 16px;
   width: 36px;
   height: 36px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid var(--border-glass);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);
   font-size: 24px;
@@ -351,8 +337,8 @@
 }
 
 .sidebar-close-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
 }
 
 /* Sidebar backdrop (mobile only) */
@@ -363,8 +349,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.4);
   z-index: 19;
 }
 
@@ -395,6 +380,6 @@
   }
 
   .sidebar-header {
-    padding-right: 60px; /* Make room for close button */
+    padding-right: 60px;
   }
 }

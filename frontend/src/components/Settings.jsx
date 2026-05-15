@@ -95,16 +95,14 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
   const [chairmanModel, setChairmanModel] = useState('');
   const [councilTemperature, setCouncilTemperature] = useState(0.5);
   const [chairmanTemperature, setChairmanTemperature] = useState(0.4);
-  const [stage2Temperature, setStage2Temperature] = useState(0.3);
   const [brainstormMaxCycles, setBrainstormMaxCycles] = useState(4);
 
   // System Prompts State
   const [prompts, setPrompts] = useState({
     stage1_prompt: '',
-    stage2_prompt: '',
-    stage3_prompt: '',
-    title_prompt: '',
-
+    brainstorm_turn_prompt: '',
+    brainstorm_summary_prompt: '',
+    brainstorm_final_prompt: '',
   });
   const [activePromptTab, setActivePromptTab] = useState('stage1');
 
@@ -153,7 +151,6 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       if (chairmanModel !== settings.chairman_model) return true;
       if (councilTemperature !== (settings.council_temperature ?? 0.5)) return true;
       if (chairmanTemperature !== (settings.chairman_temperature ?? 0.4)) return true;
-      if (stage2Temperature !== (settings.stage2_temperature ?? 0.3)) return true;
       if (brainstormMaxCycles !== (settings.brainstorm_max_cycles ?? 4)) return true;
 
       // Remote/Local filters
@@ -161,8 +158,9 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       if (chairmanFilter !== (settings.chairman_filter || 'remote')) return true;
       // Prompts
       if (prompts.stage1_prompt !== settings.stage1_prompt) return true;
-      if (prompts.stage2_prompt !== settings.stage2_prompt) return true;
-      if (prompts.stage3_prompt !== settings.stage3_prompt) return true;
+      if (prompts.brainstorm_turn_prompt !== settings.brainstorm_turn_prompt) return true;
+      if (prompts.brainstorm_summary_prompt !== settings.brainstorm_summary_prompt) return true;
+      if (prompts.brainstorm_final_prompt !== settings.brainstorm_final_prompt) return true;
 
       // Note: API keys are auto-saved on test, so we don't check them here
 
@@ -184,7 +182,6 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
     chairmanModel,
     councilTemperature,
     chairmanTemperature,
-    stage2Temperature,
     councilMemberFilters,
     chairmanFilter,
     prompts
@@ -369,7 +366,6 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       setChairmanModel(loadedChairmanModel);
       setCouncilTemperature(data.council_temperature ?? 0.5);
       setChairmanTemperature(data.chairman_temperature ?? 0.4);
-      setStage2Temperature(data.stage2_temperature ?? 0.3);
       setBrainstormMaxCycles(data.brainstorm_max_cycles ?? 4);
 
       // Initialize refs for auto-save tracking (prevents auto-save on initial load)
@@ -398,9 +394,9 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       // Prompts
       setPrompts({
         stage1_prompt: data.stage1_prompt || '',
-        stage2_prompt: data.stage2_prompt || '',
-        stage3_prompt: data.stage3_prompt || '',
-
+        brainstorm_turn_prompt: data.brainstorm_turn_prompt || '',
+        brainstorm_summary_prompt: data.brainstorm_summary_prompt || '',
+        brainstorm_final_prompt: data.brainstorm_final_prompt || '',
       });
 
       // Clear Direct Keys (for security)
@@ -981,9 +977,9 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       const defaults = await api.getDefaultSettings();
       setPrompts({
         stage1_prompt: defaults.stage1_prompt,
-        stage2_prompt: defaults.stage2_prompt,
-        stage3_prompt: defaults.stage3_prompt,
-
+        brainstorm_turn_prompt: defaults.brainstorm_turn_prompt,
+        brainstorm_summary_prompt: defaults.brainstorm_summary_prompt,
+        brainstorm_final_prompt: defaults.brainstorm_final_prompt,
       });
 
       // 5. Save the reset settings to backend
@@ -1007,14 +1003,14 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
         chairman_model: '',
         council_temperature: 0.5,
         chairman_temperature: 0.4,
-        stage2_temperature: 0.3,
         search_query_model: '',
         council_member_filters: { 0: 'remote', 1: 'remote' },
         chairman_filter: 'remote',
         search_query_filter: 'remote',
         stage1_prompt: defaults.stage1_prompt,
-        stage2_prompt: defaults.stage2_prompt,
-        stage3_prompt: defaults.stage3_prompt,
+        brainstorm_turn_prompt: defaults.brainstorm_turn_prompt,
+        brainstorm_summary_prompt: defaults.brainstorm_summary_prompt,
+        brainstorm_final_prompt: defaults.brainstorm_final_prompt,
       };
       await api.updateSettings(updates);
 
@@ -1094,7 +1090,6 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       // Temperature Settings
       council_temperature: councilTemperature,
       chairman_temperature: chairmanTemperature,
-      stage2_temperature: stage2Temperature,
 
       // Brainstorm
       brainstorm_max_cycles: brainstormMaxCycles,
@@ -1151,7 +1146,6 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
         // Apply Temperature Settings
         if (config.council_temperature !== undefined) setCouncilTemperature(config.council_temperature);
         if (config.chairman_temperature !== undefined) setChairmanTemperature(config.chairman_temperature);
-        if (config.stage2_temperature !== undefined) setStage2Temperature(config.stage2_temperature);
         if (config.brainstorm_max_cycles !== undefined) setBrainstormMaxCycles(config.brainstorm_max_cycles);
 
         // Apply Filters
@@ -1246,7 +1240,6 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
         chairman_model: chairmanModel,
         council_temperature: councilTemperature,
         chairman_temperature: chairmanTemperature,
-        stage2_temperature: stage2Temperature,
         brainstorm_max_cycles: brainstormMaxCycles,
 
         // Remote/Local filters for each selection
@@ -1558,8 +1551,6 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
                 handleResetPrompt={handleResetPrompt}
                 activePromptTab={activePromptTab}
                 setActivePromptTab={setActivePromptTab}
-                stage2Temperature={stage2Temperature}
-                setStage2Temperature={setStage2Temperature}
               />
             )}
 
@@ -1698,7 +1689,7 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
                     <li>Provider toggles → All disabled</li>
                     <li>Model selections → Cleared</li>
                     <li>Council size → Reset to 2 members</li>
-                    <li>Temperatures → Defaults (0.5 / 0.4 / 0.3)</li>
+                    <li>Temperatures → Defaults (0.5 / 0.4)</li>
                     <li>System prompts → Defaults</li>
                     <li>Search provider → DuckDuckGo</li>
                     <li>Jina fetch count → 3</li>

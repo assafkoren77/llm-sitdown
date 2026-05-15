@@ -8,7 +8,6 @@ import Stage2, { Stage2Skeleton } from './Stage2';
 import Stage3, { Stage3Skeleton } from './Stage3';
 import BrainstormView from './BrainstormView';
 import CouncilGrid from './CouncilGrid';
-import ExecutionModeToggle from './ExecutionModeToggle';
 import { api } from '../api';
 import './ChatInterface.css';
 
@@ -22,13 +21,16 @@ export default function ChatInterface({
     onOpenSettings,
     councilModels = [],
     chairmanModel = null,
-    executionMode,
-    onExecutionModeChange,
     searchProvider = 'duckduckgo',
     brainstormSteering = null,
     onBrainstormSteer,
-    userSteering = false,
+    brainstormAwaitingFinalDecision = null,
+    onBrainstormFinalDecision,
+    userSteering = true,
     onUserSteeringChange,
+    chairmanChat = [],
+    chairmanChatLoading = false,
+    onChairmanFollowup,
 }) {
     const [input, setInput] = useState('');
     const [webSearch, setWebSearch] = useState(false);
@@ -74,7 +76,7 @@ export default function ChatInterface({
         return (
             <div className="chat-interface">
                 <div className="empty-state">
-                    <h1>Welcome to LLM Council <span className="plus-text">Plus</span></h1>
+                    <h1>Welcome to <span className="title-sitdown">LLM Sitdown</span></h1>
                     <p className="hero-message">
                         The Council is ready to deliberate. <button className="config-link" onClick={() => onOpenSettings('council')}>Configure it</button>
                     </p>
@@ -96,7 +98,7 @@ export default function ChatInterface({
                 {(!conversation || conversation.messages.length === 0) ? (
                     <div className="hero-container">
                         <div className="hero-content">
-                            <h1>Welcome to LLM Council <span className="text-gradient">Plus</span></h1>
+                            <h1>Welcome to <span className="text-gradient">LLM Sitdown</span></h1>
                             <p className="hero-subtitle">
                                 The Council is ready to deliberate. <button className="config-link" onClick={() => onOpenSettings('council')}>Configure it</button>
                             </p>
@@ -109,7 +111,7 @@ export default function ChatInterface({
                     conversation.messages.map((msg, index) => (
                         <div key={`${conversation.id}-msg-${index}`} className={`message ${msg.role}`}>
                             <div className="message-role">
-                                {msg.role === 'user' ? 'Your Question to the Council' : 'LLM Council'}
+                                {msg.role === 'user' ? 'Your Question' : 'LLM Sitdown'}
                             </div>
 
                             <div className="message-content">
@@ -143,8 +145,8 @@ export default function ChatInterface({
                                             />
                                         )}
 
-                                        {/* Stage 1: Council Grid Visualization */}
-                                        {(msg.loading?.stage1 || msg.stage1) && (
+                                        {/* Stage 1: Council Grid Visualization — hidden in brainstorm mode (shown inside BrainstormView instead) */}
+                                        {(msg.loading?.stage1 || msg.stage1) && !msg.loading?.brainstorm && !(msg.brainstorm_turns?.length > 0) && (
                                             <div className="stage-container">
                                                 <div className="stage-header">
                                                     <h3>Stage 1: Council Deliberation</h3>
@@ -167,8 +169,8 @@ export default function ChatInterface({
                                             </div>
                                         )}
 
-                                        {/* Stage 1 Results (Accordion/List - kept for detail view) */}
-                                        {(msg.loading?.stage1 || msg.stage1) ? (
+                                        {/* Stage 1 Results — hidden in brainstorm mode (shown inside BrainstormView instead) */}
+                                        {(msg.loading?.stage1 || msg.stage1) && !msg.loading?.brainstorm && !(msg.brainstorm_turns?.length > 0) ? (
                                             msg.loading?.stage1 && !msg.stage1 ? (
                                                 <Stage1Skeleton />
                                             ) : msg.stage1 && (
@@ -209,6 +211,7 @@ export default function ChatInterface({
                                         {/* Brainstorm Mode */}
                                         {(msg.loading?.brainstorm || (msg.brainstorm_turns && msg.brainstorm_turns.length > 0)) && (
                                             <BrainstormView
+                                                stage1={msg.stage1 || []}
                                                 turns={msg.brainstorm_turns || []}
                                                 summaries={msg.brainstorm_summaries || []}
                                                 status={msg.brainstorm_status}
@@ -221,6 +224,12 @@ export default function ChatInterface({
                                                 awaitingUserInput={brainstormSteering}
                                                 onUserInput={onBrainstormSteer}
                                                 userInputs={msg.brainstorm_user_inputs || []}
+                                                awaitingFinalDecision={brainstormAwaitingFinalDecision}
+                                                onFinalDecision={onBrainstormFinalDecision}
+                                                chairmanChat={chairmanChat}
+                                                chairmanChatLoading={chairmanChatLoading}
+                                                onChairmanFollowup={onChairmanFollowup}
+                                                chairmanModel={chairmanModel}
                                             />
                                         )}
 
@@ -284,21 +293,19 @@ export default function ChatInterface({
                                 {webSearch && <span className="search-label">Search On</span>}
                             </label>
 
-                            {executionMode === 'brainstorm' && (
-                                <label
-                                    className={`steer-toggle ${userSteering ? 'active' : ''}`}
-                                    title="Pause after each chairman summary so you can guide the discussion"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        className="search-checkbox"
-                                        checked={userSteering}
-                                        onChange={() => onUserSteeringChange(!userSteering)}
-                                    />
-                                    <span className="steer-icon">🧭</span>
-                                    <span className="steer-label">{userSteering ? 'Steering On' : 'Steer'}</span>
-                                </label>
-                            )}
+                            <label
+                                className={`steer-toggle ${userSteering ? 'active' : ''}`}
+                                title="Pause after each chairman summary so you can guide the discussion"
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="search-checkbox"
+                                    checked={userSteering}
+                                    onChange={() => onUserSteeringChange(!userSteering)}
+                                />
+                                <span className="steer-icon">🧭</span>
+                                <span className="steer-label">{userSteering ? 'Steering On' : 'Steer'}</span>
+                            </label>
 
                             <textarea
                                 className="message-input"
@@ -322,13 +329,6 @@ export default function ChatInterface({
                             )}
                         </div>
 
-                        <div className="input-row-bottom">
-                            <ExecutionModeToggle
-                                value={executionMode}
-                                onChange={onExecutionModeChange}
-                                disabled={isLoading}
-                            />
-                        </div>
                     </form>
                 )}
             </div>

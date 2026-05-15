@@ -6,8 +6,6 @@ export default function PromptSettings({
     handleResetPrompt,
     activePromptTab,
     setActivePromptTab,
-    stage2Temperature,
-    setStage2Temperature
 }) {
     return (
         <section className="settings-section">
@@ -24,16 +22,22 @@ export default function PromptSettings({
                     Stage 1
                 </button>
                 <button
-                    className={`prompt-tab ${activePromptTab === 'stage2' ? 'active' : ''}`}
-                    onClick={() => setActivePromptTab('stage2')}
+                    className={`prompt-tab ${activePromptTab === 'brainstorm_turn' ? 'active' : ''}`}
+                    onClick={() => setActivePromptTab('brainstorm_turn')}
                 >
-                    Stage 2
+                    Discussion Turn
                 </button>
                 <button
-                    className={`prompt-tab ${activePromptTab === 'stage3' ? 'active' : ''}`}
-                    onClick={() => setActivePromptTab('stage3')}
+                    className={`prompt-tab ${activePromptTab === 'brainstorm_summary' ? 'active' : ''}`}
+                    onClick={() => setActivePromptTab('brainstorm_summary')}
                 >
-                    Stage 3
+                    Summary
+                </button>
+                <button
+                    className={`prompt-tab ${activePromptTab === 'brainstorm_final' ? 'active' : ''}`}
+                    onClick={() => setActivePromptTab('brainstorm_final')}
+                >
+                    Final Statement
                 </button>
             </div>
 
@@ -42,7 +46,7 @@ export default function PromptSettings({
                     <div className="prompt-content">
                         <label>Stage 1: Initial Response</label>
                         <p className="section-description" style={{ marginBottom: '10px' }}>
-                            Guides council members' initial responses to user questions.
+                            Guides council members' initial independent responses to the user's question.
                         </p>
                         <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{search_context_block}'}</code></p>
                         <textarea
@@ -53,59 +57,49 @@ export default function PromptSettings({
                         <button className="reset-prompt-btn" onClick={() => handleResetPrompt('stage1_prompt')}>Reset to Default</button>
                     </div>
                 )}
-                {activePromptTab === 'stage2' && (
+                {activePromptTab === 'brainstorm_turn' && (
                     <div className="prompt-content">
-                        <label>Stage 2: Peer Ranking</label>
-
-                        {/* Stage 2 Temperature Slider - Positioned prominently */}
-                        <div className="stage2-heat-section" style={{ marginTop: '12px', marginBottom: '16px', padding: '15px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                            <div className="heat-slider-header">
-                                <h4 style={{ margin: 0, fontSize: '14px', color: '#e2e8f0' }}>Stage 2 Heat</h4>
-                                <span className="heat-value">{stage2Temperature.toFixed(1)}</span>
-                            </div>
-                            <p className="section-description" style={{ fontSize: '12px', margin: '8px 0' }}>
-                                Lower temperature recommended for consistent, parseable ranking output.
-                            </p>
-                            <div className="heat-slider-container">
-                                <span className="heat-icon cold">❄️</span>
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.1"
-                                    value={stage2Temperature}
-                                    onChange={(e) => setStage2Temperature(parseFloat(e.target.value))}
-                                    className="heat-slider"
-                                />
-                                <span className="heat-icon hot">🔥</span>
-                            </div>
-                        </div>
-
+                        <label>Discussion Turn</label>
                         <p className="section-description" style={{ marginBottom: '10px' }}>
-                            Instructs models how to rank and evaluate peer responses.
+                            Instructs each council member how to contribute during a brainstorm discussion cycle.
                         </p>
-                        <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{responses_text}'}</code>, <code>{'{search_context_block}'}</code></p>
+                        <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{initial_answers}'}</code>, <code>{'{discussion_history}'}</code>, <code>{'{model_name}'}</code>, <code>{'{cycle}'}</code></p>
                         <textarea
-                            value={prompts.stage2_prompt}
-                            onChange={(e) => handlePromptChange('stage2_prompt', e.target.value)}
+                            value={prompts.brainstorm_turn_prompt}
+                            onChange={(e) => handlePromptChange('brainstorm_turn_prompt', e.target.value)}
                             rows={15}
                         />
-                        <button className="reset-prompt-btn" onClick={() => handleResetPrompt('stage2_prompt')}>Reset to Default</button>
+                        <button className="reset-prompt-btn" onClick={() => handleResetPrompt('brainstorm_turn_prompt')}>Reset to Default</button>
                     </div>
                 )}
-                {activePromptTab === 'stage3' && (
+                {activePromptTab === 'brainstorm_summary' && (
                     <div className="prompt-content">
-                        <label>Stage 3: Chairman Synthesis</label>
+                        <label>Chairman Summary</label>
                         <p className="section-description" style={{ marginBottom: '10px' }}>
-                            Directs the chairman to synthesize a final answer from all inputs.
+                            Directs the chairman to summarize progress and check for consensus after each pair of cycles. Must end with <code>CONSENSUS: YES</code> or <code>CONSENSUS: NO</code>.
                         </p>
-                        <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{stage1_text}'}</code>, <code>{'{stage2_text}'}</code>, <code>{'{search_context_block}'}</code></p>
+                        <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{initial_answers}'}</code>, <code>{'{previous_summaries}'}</code>, <code>{'{recent_discussion}'}</code>, <code>{'{cycle}'}</code></p>
                         <textarea
-                            value={prompts.stage3_prompt}
-                            onChange={(e) => handlePromptChange('stage3_prompt', e.target.value)}
+                            value={prompts.brainstorm_summary_prompt}
+                            onChange={(e) => handlePromptChange('brainstorm_summary_prompt', e.target.value)}
                             rows={15}
                         />
-                        <button className="reset-prompt-btn" onClick={() => handleResetPrompt('stage3_prompt')}>Reset to Default</button>
+                        <button className="reset-prompt-btn" onClick={() => handleResetPrompt('brainstorm_summary_prompt')}>Reset to Default</button>
+                    </div>
+                )}
+                {activePromptTab === 'brainstorm_final' && (
+                    <div className="prompt-content">
+                        <label>Final Statement</label>
+                        <p className="section-description" style={{ marginBottom: '10px' }}>
+                            Instructs the chairman to draft the definitive final answer after the discussion concludes.
+                        </p>
+                        <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{initial_answers}'}</code>, <code>{'{discussion_history}'}</code>, <code>{'{summaries_text}'}</code>, <code>{'{reason}'}</code></p>
+                        <textarea
+                            value={prompts.brainstorm_final_prompt}
+                            onChange={(e) => handlePromptChange('brainstorm_final_prompt', e.target.value)}
+                            rows={15}
+                        />
+                        <button className="reset-prompt-btn" onClick={() => handleResetPrompt('brainstorm_final_prompt')}>Reset to Default</button>
                     </div>
                 )}
             </div>

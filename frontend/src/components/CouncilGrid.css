@@ -311,7 +311,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid #1e293b;
+    border: 2px solid var(--bg-card);
     z-index: 3;
     animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }

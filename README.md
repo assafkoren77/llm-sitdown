@@ -1,8 +1,8 @@
-# LLM Council Plus
+# LLM Sitdown
 
-![LLM Council Plus](header.png)
+![LLM Sitdown](header.png)
 
-> **Collective AI Intelligence** — Instead of asking one LLM, convene a council of AI models that deliberate, peer-review, and synthesize the best answer.
+> **Multi-LLM deliberation framework where models debate in structured cycles until they reach consensus — or agree to disagree.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://reactjs.org/)
@@ -11,23 +11,21 @@
 
 ---
 
-## What is LLM Council Plus?
+## What is LLM Sitdown?
 
-Instead of asking a single LLM (like ChatGPT or Claude) for an answer, **LLM Council Plus** assembles a council of multiple AI models that:
+Most "multi-LLM" tools poll several models in parallel and pick a winner. **LLM Sitdown** does something different: it sits the models down at the same table and makes them talk to each other.
 
-1. **Independently answer** your question (Stage 1)
-2. **Anonymously peer-review** each other's responses (Stage 2)
-3. **Synthesize a final answer** through a Chairman model (Stage 3)
+A council of LLMs takes turns reading the full discussion and contributing new perspectives. Every couple of cycles a Chairman model summarizes where things stand, flags disagreements, and weighs in. You can interject mid-conversation to steer the debate. The discussion ends when the council converges on consensus — or when the cycle limit is reached and the Chairman calls it.
 
-The result? More balanced, accurate, and thoroughly vetted responses that leverage the collective intelligence of multiple AI models.
+The result is a deliberation, not a vote: more thoroughly stress-tested answers for the questions where a single model's first instinct isn't good enough.
 
 <p align="center">
   <div align="center">
     <a href="https://www.youtube.com/watch?v=HOdyIyccOCE" target="_blank">
-      <img src="https://img.youtube.com/vi/HOdyIyccOCE/hqdefault.jpg" alt="LLM Council Plus Long Demo" width="48%">
+      <img src="https://img.youtube.com/vi/HOdyIyccOCE/hqdefault.jpg" alt="LLM Sitdown Long Demo" width="48%">
     </a>
     <a href="https://www.youtube.com/watch?v=NUmQFGAwD3g" target="_blank">
-      <img src="https://img.youtube.com/vi/NUmQFGAwD3g/hqdefault.jpg" alt="LLM Council Plus Short Demo" width="48%">
+      <img src="https://img.youtube.com/vi/NUmQFGAwD3g/hqdefault.jpg" alt="LLM Sitdown Short Demo" width="48%">
     </a>
   </div>
 </p>
@@ -38,8 +36,8 @@ The result? More balanced, accurate, and thoroughly vetted responses that levera
 
 ```bash
 # Clone and install
-git clone https://github.com/jacob-bd/llm-council-plus.git
-cd llm-council-plus
+git clone https://github.com/YOUR_USERNAME/llm-sitdown.git
+cd llm-sitdown
 uv sync                    # Backend dependencies
 cd frontend && npm install # Frontend dependencies
 
@@ -53,53 +51,65 @@ Then open **http://localhost:5173** and configure your API keys in Settings.
 
 ---
 
-## How It Works
+## How the Sitdown Works
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        YOUR QUESTION                             │
-│            (+ optional web search for real-time info)            │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    STAGE 1: DELIBERATION                         │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐             │
-│  │ Claude  │  │  GPT-4  │  │ Gemini  │  │  Llama  │  ...        │
-│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘             │
-│       │            │            │            │                   │
-│       ▼            ▼            ▼            ▼                   │
-│  Response A   Response B   Response C   Response D               │
+│                     INITIAL PERSPECTIVES                         │
+│  Each model answers independently (no coordination yet)          │
 └─────────────────────────────────────────────────────────────────┘
+                              │
+                 ┌────────────▼────────────┐
+                 │     DISCUSSION CYCLES    │
+                 │                          │
+                 │  ► Each model reads the  │
+                 │    full conversation and │
+                 │    adds its perspective  │
+                 │                          │
+                 │  ► Chairman summarizes   │◄── (optional)
+                 │    every 2 cycles and    │    User Steering
+                 │    checks for consensus  │    Input
+                 │                          │
+                 │  ► Loop until consensus  │
+                 │    or the cycle limit is │
+                 │    reached. At the limit │
+                 │    without consensus,    │
+                 │    you can extend by +2  │
+                 │    cycles or finalize    │
+                 └────────────┬────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    STAGE 2: PEER REVIEW                          │
-│  Each model reviews ALL responses (anonymized as A, B, C, D)     │
-│  and ranks them by accuracy, insight, and completeness           │
-│                                                                   │
-│  Rankings are aggregated to identify the best responses          │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    STAGE 3: SYNTHESIS                            │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    CHAIRMAN MODEL                        │    │
-│  │  Reviews all responses + rankings + search context       │    │
-│  │  Synthesizes the council's collective wisdom             │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                   │
-│                              ▼                                   │
-│                      FINAL ANSWER                                │
+│                    FINAL SYNTHESIS                               │
+│  Chairman drafts a definitive statement based on the full        │
+│  discussion, all summaries, and any user steering inputs         │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**The flow:**
+
+1. Each model submits an independent initial perspective
+2. Models take turns in round-robin order, each one reading the conversation so far and contributing an updated perspective
+3. After every 2 cycles, the Chairman summarizes the debate — noting agreements, flagging open disagreements, and sharing its own view to guide the next round
+4. If the Chairman signals `CONSENSUS: YES`, the discussion ends early
+5. If the cycle limit is hit without consensus, you choose: **extend** the discussion by +2 cycles (with an optional steering pause) or **finalize** now and let the Chairman call it. You can keep extending as many times as you like.
+6. After consensus or finalization, the Chairman drafts a definitive final statement
+
+**Cycle limit:** Configurable per install in Council Configuration (2–10, default 4). The Chairman summarizes every 2 cycles, so the limit is best set as an even number.
+
+**User Steering:** Enable the steering toggle to pause between cycles and inject your own guidance — redirect the conversation, focus on a subtopic, or introduce a new angle. The backend waits up to 5 minutes per pause; skip it and the discussion continues automatically.
 
 ---
 
 ## Features
 
 ### Multi-Provider Support
+
 Mix and match models from different sources in your council:
 
 | Provider | Type | Description |
@@ -108,7 +118,7 @@ Mix and match models from different sources in your council:
 | **Ollama** | Local | Run open-source models locally (Llama, Mistral, Phi, etc.) |
 | **Groq** | Cloud | Ultra-fast inference for Llama and Mixtral models |
 | **OpenAI Direct** | Cloud | Direct connection to OpenAI API |
-| **Anthropic Direct** | Cloud | Direct connection to Anthropic API |
+| **Anthropic Direct** | Cloud | Direct connection to Anthropic API (with auto-retry on rate limits) |
 | **Google Direct** | Cloud | Direct connection to Google AI API |
 | **Mistral Direct** | Cloud | Direct connection to Mistral API |
 | **DeepSeek Direct** | Cloud | Direct connection to DeepSeek API |
@@ -117,20 +127,6 @@ Mix and match models from different sources in your council:
 <p align="center">
   <img width="600" alt="LLM API Keys Settings" src="https://github.com/user-attachments/assets/f9a5ec9d-17e8-4e78-ad40-0c21850f2823" />
 </p>
-
-### Execution Modes
-
-<p align="center">
-  <img width="818" alt="Execution Modes Toggle" src="https://github.com/user-attachments/assets/6f8dcc5b-6dbb-423a-8376-9f6b0ebb58ba" />
-</p>
-
-Choose how deeply the council deliberates:
-
-| Mode | Stages | Best For |
-|------|--------|----------|
-| **Chat Only** | Stage 1 only | Quick responses, comparing model outputs |
-| **Chat + Ranking** | Stages 1 & 2 | See how models rank each other |
-| **Full Deliberation** | All 3 stages | Complete council synthesis (default) |
 
 ### Web Search Integration
 
@@ -147,20 +143,18 @@ Ground your council's responses in real-time information:
 | **Tavily** | API Key | Purpose-built for LLMs, rich content |
 | **Brave Search** | API Key | Privacy-focused, 2,000 free queries/month |
 
-**Full Article Fetching**: Uses [Jina Reader](https://jina.ai/reader) to extract full article content from top search results (configurable 0-10 results).
+**Full Article Fetching**: Uses [Jina Reader](https://jina.ai/reader) to extract full article content from top search results (configurable 0–10 results).
 
 ### Temperature Controls
+
+Fine-tune creativity vs consistency:
+
+- **Council Heat**: Controls initial-perspective and discussion-turn creativity (default: 0.5)
+- **Chairman Heat**: Controls summaries and final-synthesis creativity (default: 0.4)
 
 <p align="center">
   <img width="586" alt="Temperature Controls" src="https://github.com/user-attachments/assets/3922edf6-99f5-4020-b80f-ba3c43a2ce9a" />
 </p>
-
-Fine-tune creativity vs consistency:
-
-- **Council Heat**: Controls Stage 1 response creativity (default: 0.5)
-- **Chairman Heat**: Controls final synthesis creativity (default: 0.4)
-- **Stage 2 Heat**: Controls peer ranking consistency (default: 0.3)
-
 <p align="center">
   <img width="849" alt="Council Configuration" src="https://github.com/user-attachments/assets/45880bee-1fec-4efc-b1cb-eceaabe071ff" />
 </p>
@@ -168,18 +162,20 @@ Fine-tune creativity vs consistency:
 ### Additional Features
 
 - **Live Progress Tracking**: See each model respond in real-time
-- **Council Sizing**: adjust council size from 2 to 8
+- **Retry Last Message**: One-click retry for failed or unsatisfying responses
+- **Council Sizing**: Adjust council size from 2 to 8
 - **Abort Anytime**: Cancel in-progress requests
-- **Conversation History**: All conversations saved locally
-- **Customizable Prompts**: Edit Stage 1, 2, and 3 system prompts
+- **Conversation History**: All conversations saved locally (including full discussion turn/summary history)
+- **Customizable Prompts**: Edit Initial Response, Discussion Turn, Summary, and Final Statement system prompts
+- **Anthropic Rate-Limit Retry**: Automatic exponential backoff on 429 errors, respecting `Retry-After` headers
+- **GFM Table Support**: GitHub-flavored Markdown tables rendered correctly via `remark-gfm`
 - **Rate Limit Warnings**: Alerts when your config may hit API limits (when >5 council members)
 - **"I'm Feeling Lucky"**: Randomize your council composition
-- **Import & Export**:  backup and share your favorite council configurations, system prompts, and settings
+- **Import & Export**: Backup and share your favorite council configurations, system prompts, and settings
 
 <p align="center">
   <img width="854" alt="Backup and Reset" src="https://github.com/user-attachments/assets/0e618bd4-02c2-47b2-b82b-c4900b7a4fdd" />
 </p>
-
 
 ---
 
@@ -215,10 +211,9 @@ Then open **http://localhost:5173** in your browser.
 
 ### Network Access
 
-The application is configured to be accessible from other devices on your local network.
+The application is accessible from other devices on your local network.
 
-**Using start.sh (automatic):**
-The start script now exposes both frontend and backend on the network automatically. Just run `./start.sh` and access from any device.
+**Using start.sh (automatic):** The start script exposes both frontend and backend on the network automatically.
 
 **Access URLs:**
 - **Local:** `http://localhost:5173`
@@ -228,21 +223,13 @@ The start script now exposes both frontend and backend on the network automatica
 ```bash
 # macOS/Linux
 ifconfig | grep "inet " | grep -v 127.0.0.1
-
-# Or use hostname
-hostname -I
 ```
 
 **Manual setup (if not using start.sh):**
 ```bash
 # Backend already listens on 0.0.0.0:8001
-
-# Frontend with network access
-cd frontend
-npm run dev -- --host
+cd frontend && npm run dev -- --host
 ```
-
-The frontend automatically detects the hostname and connects to the backend on the same IP. CORS is configured to allow requests from any hostname on ports 5173 and 3000.
 
 ---
 
@@ -289,18 +276,20 @@ Connect to any OpenAI-compatible API:
    - **API Key**: (optional for local servers)
 3. Click "Connect" to test and save
 
-**Compatible services**: Together AI, Fireworks AI, vLLM, LM Studio, Ollama (if you prefer this method), GitHub Models (`https://models.inference.ai.azure.com/v1`), and more.
+**Compatible services**: Together AI, Fireworks AI, vLLM, LM Studio, Ollama, GitHub Models (`https://models.inference.ai.azure.com/v1`), and more.
 
 ### Council Configuration
 
 1. **Enable Model Sources**: Toggle which providers appear in model selection
-2. **Select Council Members**: Choose 2-8 models for your council
-3. **Select Chairman**: Pick a model to synthesize the final answer
-4. **Adjust Temperature**: Use sliders for creativity control
+2. **Select Council Members**: Choose 2–8 models for your council
+3. **Select Chairman**: Pick a model to summarize cycles and synthesize the final answer
+4. **Adjust Temperature**: Use the Council Heat and Chairman Heat sliders for creativity control
+5. **Max Discussion Cycles**: Set the initial cycle ceiling (2–10, default 4). The Chairman summarizes every 2 cycles and checks for consensus. If the council still hasn't agreed once the limit is reached, you'll be prompted to either extend by +2 cycles or have the Chairman issue the final statement immediately.
 
 **Tips:**
 - Mix different model families for diverse perspectives
 - Use faster models (Groq, Ollama) for large councils
+- The sitdown works best with 3–5 council members — too many makes cycles slow
 - Free OpenRouter models have rate limits (20/min, 50/day)
 
 ### Search Providers
@@ -316,10 +305,8 @@ Connect to any OpenAI-compatible API:
 
 | Mode | Description | Best For |
 |------|-------------|----------|
-| **Direct** (default) | Sends your exact query to the search engine | Short, focused questions. Works best with semantic search engines like Tavily and Brave. |
-| **Smart Keywords (YAKE)** | Extracts key terms from your prompt before searching | Very long prompts or multi-paragraph context that might confuse the search engine. Uses [YAKE](https://github.com/LIAAD/yake) keyword extraction. |
-
-> **Tip:** Start with **Direct** mode. Only switch to **YAKE** if you notice search results are irrelevant when pasting long documents or complex prompts.
+| **Direct** (default) | Sends your exact query to the search engine | Short, focused questions |
+| **Smart Keywords (YAKE)** | Extracts key terms before searching | Very long prompts or complex multi-paragraph inputs |
 
 ---
 
@@ -332,20 +319,24 @@ Connect to any OpenAI-compatible API:
 3. (Optional) Enable web search toggle for real-time info
 4. Press Enter or click Send
 
-### Understanding the Output
+### The Sitdown, step by step
 
-**Stage 1 - Council Deliberation**
-- Tab view showing each model's individual response
-- Live progress as models respond
+1. Send your question — models will answer independently first
+2. Watch the discussion panel as models take turns building on each other's responses
+3. After every 2 cycles, the Chairman posts a summary noting agreements and open questions
+4. (Optional) Enable **User Steering** to pause between cycles and inject guidance
+5. If the cycle limit hits without consensus, choose **➕ 2 more cycles** to keep deliberating (you can do this repeatedly) or **📋 Issue final statement** to wrap up now
+6. When discussion ends (consensus or finalize), the Chairman drafts the final statement
 
-**Stage 2 - Peer Rankings**
-- Each model's evaluation and ranking of peers
-- Aggregate scores showing consensus rankings
-- De-anonymization reveals which model gave which response
+### What you'll see
 
-**Stage 3 - Chairman Synthesis**
-- Final, synthesized answer from the Chairman
-- Incorporates best insights from all responses and rankings
+- **Initial Perspectives**: A collapsible panel with each model's independent first answer
+- **Cycle Cards**: Expandable cards for each round, with every model's turn labeled by name and cycle
+- **Chairman Summaries**: Dividers between cycles showing consensus status (`CONSENSUS: YES/NO`) and open questions
+- **Steering Input**: Toast prompt between cycles when User Steering is enabled
+- **Extend-or-Finalize Toast**: At the cycle limit without consensus, a toast offers `➕ 2 more cycles` (with an optional steering pause before they start) or `📋 Issue final statement`
+- **Final Statement**: Chairman's definitive answer once the discussion concludes
+- **Chairman Follow-up Chat**: Continue the conversation with the Chairman after the sitdown ends
 
 ### Keyboard Shortcuts
 
@@ -361,7 +352,7 @@ Connect to any OpenAI-compatible API:
 | Component | Technology |
 |-----------|------------|
 | **Backend** | FastAPI, Python 3.10+, httpx (async HTTP) |
-| **Frontend** | React 19, Vite, react-markdown |
+| **Frontend** | React 19, Vite, react-markdown, remark-gfm |
 | **Styling** | CSS with "Midnight Glass" dark theme |
 | **Storage** | JSON files in `data/` directory |
 | **Package Management** | uv (Python), npm (JavaScript) |
@@ -384,13 +375,11 @@ data/
 
 > **⚠️ Security Warning: API Keys Stored in Plain Text**
 >
-> In this build, **API keys are stored in clear text** in `data/settings.json`. The `data/` folder is included in `.gitignore` by default to prevent accidental exposure.
+> API keys are stored in clear text in `data/settings.json`. The `data/` folder is included in `.gitignore` by default.
 >
-> **Important:**
-> - **Do NOT remove `data/` from `.gitignore`** — this protects your API keys from being pushed to GitHub
-> - If you fork this repo or modify `.gitignore`, ensure `data/` remains ignored
+> - **Do NOT remove `data/` from `.gitignore`**
 > - Never commit `data/settings.json` to version control
-> - If you accidentally expose your keys, rotate them immediately at each provider's dashboard
+> - If you accidentally expose your keys, rotate them immediately
 
 ---
 
@@ -399,13 +388,16 @@ data/
 ### Common Issues
 
 **"Failed to load conversations"**
-- Backend might still be starting up
-- App retries automatically (3 attempts with 1s, 2s, 3s delays)
+- Backend might still be starting up; app retries automatically (3 attempts with 1s, 2s, 3s delays)
 
 **Models not appearing in dropdown**
 - Ensure the provider is enabled in Council Config
 - Check that API key is configured and tested successfully
 - For Ollama, verify connection is active
+
+**Discussion gets stuck / times out**
+- The backend waits up to 5 minutes for steering input per pause, then auto-skips
+- If User Steering is enabled and you step away, discussion resumes automatically
 
 **Jina Reader returns 451 errors**
 - HTTP 451 = site blocks AI scrapers (common with news sites)
@@ -413,14 +405,15 @@ data/
 
 **Rate limit errors (OpenRouter)**
 - Free models: 20 requests/min, 50/day
-- Consider using Groq (14,400/day) or Ollama (unlimited)
-- Reduce council size for free tier usage
+- Use Groq or Ollama for large councils to keep cycle latency manageable
+
+**Anthropic 429 rate limit errors**
+- The Anthropic provider auto-retries up to 3 times with exponential backoff, respecting `Retry-After` / `Retry-After-Ms` headers
 
 **Binary compatibility errors (node_modules)**
-- When syncing between Intel/Apple Silicon Macs:
-  ```bash
-  rm -rf frontend/node_modules && cd frontend && npm install
-  ```
+```bash
+rm -rf frontend/node_modules && cd frontend && npm install
+```
 
 ### Logs
 
@@ -429,36 +422,36 @@ data/
 
 ---
 
-## Credits & Acknowledgements
+## Credits & Lineage
 
-This project is a fork and enhancement of the original **[llm-council](https://github.com/karpathy/llm-council)** by **[Andrej Karpathy](https://github.com/karpathy)**.
+LLM Sitdown stands on the shoulders of two earlier projects:
 
-**LLM Council Plus** builds upon the original "vibe coded" foundation with:
-- Multi-provider support (OpenRouter, Ollama, Groq, Direct APIs, Custom endpoints)
-- Web search integration (DuckDuckGo, Tavily, Brave + Jina Reader)
-- Execution modes (Chat Only, Chat + Ranking, Full Deliberation)
-- Temperature controls for all stages
-- Enhanced Settings UI with import/export
-- Real-time streaming with progress tracking
-- And much more...
+- **[llm-council](https://github.com/karpathy/llm-council)** by **[Andrej Karpathy](https://github.com/karpathy)** — the original concept of polling multiple LLMs and having them peer-review one another.
+- **[llm-council-plus](https://github.com/jacob-bd/llm-council-plus)** by **[Jacob BD](https://github.com/jacob-bd)** — a substantial extension of the original with multi-provider support, web search integration, customizable prompts, conversation history, and the polished React/FastAPI UI that this project inherits.
 
-We gratefully acknowledge Andrej Karpathy for the original inspiration and codebase.
+**What LLM Sitdown adds on top:**
+- **Round-robin council deliberation** — replaces parallel polling with a structured multi-cycle discussion: each model reads the full conversation and contributes a fresh perspective per turn, with chairman summaries and consensus detection every 2 cycles
+- **Mid-discussion user steering** — interject between cycles to redirect the conversation
+- **Retry Last Message** — one-click retry for failed or unsatisfying responses
+- **Anthropic rate-limit retry** — header-aware exponential backoff
+- **GFM table rendering** in all markdown outputs
+
+Sincere thanks to both Andrej and Jacob — without their work, this project wouldn't exist.
 
 ---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
 ## Contributing
 
-Contributions are welcome! This project embraces the spirit of "vibe coding" - feel free to fork and make it your own.
+Contributions are welcome. The project is still evolving, especially around the deliberation mechanic — ideas for better consensus detection, alternative chairman strategies, or new steering primitives are particularly appreciated.
 
 ---
 
 <p align="center">
-  <strong>Built with the collective wisdom of AI</strong><br>
-  <em>Ask the council. Get better answers.</em>
+  <strong>Sit the models down. Let them argue. Get a better answer.</strong>
 </p>

@@ -22,12 +22,14 @@ function App() {
   const [councilModels, setCouncilModels] = useState([]);
   const [chairmanModel, setChairmanModel] = useState(null);
   const [searchProvider, setSearchProvider] = useState('duckduckgo');
-  const [executionMode, setExecutionMode] = useState('full');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [lastSentMessage, setLastSentMessage] = useState(null);
   const [brainstormSteering, setBrainstormSteering] = useState(null);
-  const [userSteering, setUserSteering] = useState(false);
-  const userSteeringRef = useRef(false);
+  const [brainstormAwaitingFinalDecision, setBrainstormAwaitingFinalDecision] = useState(null);
+  const [chairmanChat, setChairmanChat] = useState([]);
+  const [chairmanChatLoading, setChairmanChatLoading] = useState(false);
+  const [userSteering, setUserSteering] = useState(true);
+  const userSteeringRef = useRef(true);
   const abortControllerRef = useRef(null);
   const requestIdRef = useRef(0);
   const isInitialMount = useRef(true);
@@ -42,8 +44,6 @@ function App() {
       // 1. Get Settings to check for API keys
       const settings = await api.getSettings();
 
-      // Load execution mode preference
-      setExecutionMode(settings.execution_mode || 'full');
       setSearchProvider(settings.search_provider || 'duckduckgo');
 
       const hasApiKey = settings.openrouter_api_key_set ||
@@ -129,24 +129,6 @@ function App() {
     loadConversations();
   }, []);
 
-  // Auto-save execution mode preference when changed
-  useEffect(() => {
-    // Skip saving on initial mount
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-
-    const saveExecutionMode = async () => {
-      try {
-        await api.updateSettings({ execution_mode: executionMode });
-      } catch (error) {
-        console.error('Failed to save execution mode:', error);
-      }
-    };
-
-    saveExecutionMode();
-  }, [executionMode]);
 
   const testOllamaConnection = async (customUrl = null) => {
     try {
@@ -205,6 +187,14 @@ function App() {
     try {
       const conv = await api.getConversation(id);
       setCurrentConversation(conv);
+      // Restore chairman chat history from last assistant message
+      const lastAssistant = [...(conv.messages || [])].reverse().find(m => m.role === 'assistant');
+      const stored = (lastAssistant?.brainstorm_chairman_chat || []).flatMap(e => [
+        { role: 'user', content: e.role_user },
+        { role: 'chairman', content: e.role_chairman, model: e.model },
+      ]);
+      setChairmanChat(stored);
+      setBrainstormAwaitingFinalDecision(null);
     } catch (error) {
       console.error('Failed to load conversation:', error);
     }
@@ -280,9 +270,33 @@ function App() {
     api.sendBrainstormSteering(currentConversationId, userInput).catch(console.error);
   };
 
+  const handleBrainstormFinalDecision = (action) => {
+    setBrainstormAwaitingFinalDecision(null);
+    api.sendBrainstormFinalDecision(currentConversationId, action).catch(console.error);
+  };
+
+  const handleChairmanFollowup = async (message) => {
+    const userEntry = { role: 'user', content: message };
+    setChairmanChat(prev => [...prev, userEntry]);
+    setChairmanChatLoading(true);
+    try {
+      const history = chairmanChat.map(m => ({ role: m.role, content: m.content }));
+      const result = await api.sendChairmanFollowup(currentConversationId, message, history);
+      setChairmanChat(prev => [...prev, { role: 'chairman', content: result.response || '', model: result.model }]);
+    } catch (err) {
+      console.error('Chairman followup failed:', err);
+      setChairmanChat(prev => [...prev, { role: 'chairman', content: 'Error: failed to get response.', model: '' }]);
+    } finally {
+      setChairmanChatLoading(false);
+    }
+  };
+
   const handleSendMessage = async (content, webSearch) => {
     if (!currentConversationId) return;
     setBrainstormSteering(null);
+    setBrainstormAwaitingFinalDecision(null);
+    setChairmanChat([]);
+    setChairmanChatLoading(false);
     setLastSentMessage({ content, webSearch });
 
     // Assign unique ID to this request to prevent race conditions
@@ -347,7 +361,7 @@ function App() {
       // Send message with streaming
       await api.sendMessageStream(
         currentConversationId,
-        { content, webSearch, executionMode },
+        { content, webSearch },
         (eventType, event) => {
           switch (eventType) {
             case 'search_start':
@@ -743,8 +757,30 @@ function App() {
               });
               break;
 
+            case 'brainstorm_await_final_decision':
+              setBrainstormSteering(null);
+              setBrainstormAwaitingFinalDecision({ finalCycle: event.final_cycle });
+              break;
+
+            case 'brainstorm_cycles_extended':
+              setBrainstormAwaitingFinalDecision(null);
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  progress: {
+                    ...lastMsg.progress,
+                    brainstorm: { ...lastMsg.progress.brainstorm, maxCycles: event.new_max_cycles },
+                  },
+                };
+                return { ...prev, messages };
+              });
+              break;
+
             case 'brainstorm_complete':
               setBrainstormSteering(null);
+              setBrainstormAwaitingFinalDecision(null);
               setCurrentConversation((prev) => {
                 const messages = [...prev.messages];
                 const lastMsg = messages[messages.length - 1];
@@ -905,12 +941,15 @@ function App() {
         chairmanModel={chairmanModel}
         searchProvider={searchProvider}
         onOpenSettings={handleOpenSettings}
-        executionMode={executionMode}
-        onExecutionModeChange={setExecutionMode}
         brainstormSteering={brainstormSteering}
         onBrainstormSteer={handleBrainstormSteer}
+        brainstormAwaitingFinalDecision={brainstormAwaitingFinalDecision}
+        onBrainstormFinalDecision={handleBrainstormFinalDecision}
         userSteering={userSteering}
         onUserSteeringChange={handleUserSteeringChange}
+        chairmanChat={chairmanChat}
+        chairmanChatLoading={chairmanChatLoading}
+        onChairmanFollowup={handleChairmanFollowup}
       />
       {showSettings && (
         <Settings

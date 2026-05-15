@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LLM Council Plus is a 3-stage deliberation system where multiple LLMs collaboratively answer user questions through:
-1. **Stage 1**: Individual model responses (with optional web search context)
-2. **Stage 2**: Anonymous peer review/ranking to prevent bias
-3. **Stage 3**: Chairman synthesis of collective wisdom
+LLM Council Plus is a brainstorm deliberation system where multiple LLMs collaboratively answer user questions through:
+1. **Stage 1**: Parallel independent responses from all council members (with optional web search context)
+2. **Brainstorm Discussion**: Multi-cycle round-robin debate — each model builds on the conversation; the chairman summarizes every 2 cycles and checks for consensus
+3. **Final Statement**: Chairman drafts a definitive answer once consensus is reached or max cycles hit
 
 **Key Innovation**: Hybrid architecture supporting OpenRouter (cloud), Ollama (local), Groq (fast inference), direct provider connections, and custom OpenAI-compatible endpoints.
 
@@ -69,10 +69,10 @@ This fixes binary incompatibilities (e.g., `@rollup/rollup-darwin-*` variants).
 
 | Module | Purpose |
 |--------|---------|
-| `council.py` | Orchestration: stage1/2/3 collection, rankings, title generation |
+| `council.py` | Orchestration: stage1 collection, brainstorm discussion, final synthesis, title generation |
 | `search.py` | Web search: DuckDuckGo, Tavily, Brave with Jina Reader content fetch |
 | `settings.py` | Config management, persisted to `data/settings.json` |
-| `prompts.py` | Default system prompts for all stages |
+| `prompts.py` | Default system prompts for all stages (stage1, brainstorm turn/summary/final, title) |
 | `main.py` | FastAPI app with streaming SSE endpoint |
 | `storage.py` | Conversation persistence in `data/conversations/{id}.json` |
 
@@ -81,14 +81,15 @@ This fixes binary incompatibilities (e.g., `@rollup/rollup-darwin-*` variants).
 | Component | Purpose |
 |-----------|---------|
 | `App.jsx` | Main orchestration, SSE streaming, conversation state |
-| `ChatInterface.jsx` | User input, web search toggle, execution mode |
-| `Stage1.jsx` | Tab view of individual model responses |
-| `Stage2.jsx` | Peer rankings with de-anonymization, aggregate scores |
-| `Stage3.jsx` | Chairman synthesis (final answer) |
+| `ChatInterface.jsx` | User input, web search toggle, renders per-message views |
+| `BrainstormView.jsx` | Full brainstorm UI: initial perspectives, cycle cards, chairman summaries, steering, final statement, chairman follow-up chat |
+| `Stage1.jsx` | Tab view of individual model responses (initial perspectives within BrainstormView) |
 | `CouncilGrid.jsx` | Visual grid of council members with provider icons |
 | `Settings.jsx` | 5-section settings: LLM API Keys, Council Config, System Prompts, Search Providers, Backup & Reset |
 | `Sidebar.jsx` | Conversation list with inline delete confirmation |
 | `SearchableModelSelect.jsx` | Searchable dropdown for model selection |
+| `settings/PromptSettings.jsx` | Prompt editor tabs: Stage 1, Discussion Turn, Summary, Final Statement |
+| `settings/CouncilConfig.jsx` | Model selection, temperature sliders, brainstorm cycle count |
 
 **Styling**: "Council Chamber" dark theme (refined Midnight Glass). CSS variables in `index.css` (`--font-display`: Syne, `--font-ui`: Plus Jakarta Sans, `--font-content`: Source Serif 4, `--font-code`: JetBrains Mono). Primary accent blue (#3b82f6), chairman gold (#fbbf24). Staggered hero/card animations; glass panels with backdrop-filter.
 
@@ -142,15 +143,12 @@ const getProviderInfo = (modelId) => {
 };
 ```
 
-### Stage 2 Ranking Format
-The prompt enforces strict format for parsing:
+### Brainstorm Consensus Detection
+The chairman's summary prompt requires exactly `CONSENSUS: YES` or `CONSENSUS: NO` (uppercase) as the final line. Detection in `council.py`:
+```python
+consensus = "CONSENSUS: YES" in summary_text.upper()
 ```
-1. Individual evaluations
-2. Blank line
-3. "FINAL RANKING:" header (all caps, with colon)
-4. Numbered list: "1. Response C", "2. Response A", etc.
-```
-Fallback regex extracts "Response X" patterns if format not followed.
+If the prompt is customized, this sentinel must be preserved.
 
 ### Streaming & Abort Logic
 - Backend checks `request.is_disconnected()` inside loops
@@ -168,7 +166,7 @@ Fallback regex extracts "Response X" patterns if format not followed.
 Always wrap in `.markdown-content` div and ensure string type (some providers return arrays/objects).
 
 ### Tab Bounds Safety
-In Stage1/Stage2, auto-adjust activeTab when out of bounds during streaming:
+In Stage1, auto-adjust activeTab when out of bounds during streaming:
 ```jsx
 useEffect(() => {
   if (activeTab >= responses.length && responses.length > 0) {
@@ -177,25 +175,31 @@ useEffect(() => {
 }, [responses.length]);
 ```
 
+### Brainstorm User Steering
+- Backend always pauses between cycles for user input (`await_user_input` SSE event, 300s timeout)
+- Frontend auto-skips the pause when the steering checkbox is unchecked (`userSteeringRef`)
+- Steering is submitted via `POST /api/conversations/{id}/brainstorm/steer`
+- At max cycles without consensus, `await_final_decision` event prompts extend (+2 cycles) or finalize
+
 ## Common Gotchas
 
 1. **Port Conflicts**: Backend uses 8001 (not 8000). Update `backend/main.py` and `frontend/src/api.js` together.
 
 2. **CORS Errors**: Frontend origins must match `main.py` CORS middleware (localhost:5173 and :3000).
 
-3. **Missing Metadata**: `label_to_model` and `aggregate_rankings` are ephemeral - only in API responses, not stored.
+3. **Duplicate Tabs**: Use immutable state updates (spread operator), not mutations. StrictMode runs effects twice.
 
-4. **Duplicate Tabs**: Use immutable state updates (spread operator), not mutations. StrictMode runs effects twice.
+4. **Search Rate Limits**: DuckDuckGo can rate-limit. Retry logic in `search.py` handles this.
 
-5. **Search Rate Limits**: DuckDuckGo can rate-limit. Retry logic in `search.py` handles this.
+5. **Jina Reader 451 Errors**: Many news sites block AI scrapers. Use Tavily/Brave or set `full_content_results` to 0.
 
-6. **Jina Reader 451 Errors**: Many news sites block AI scrapers. Use Tavily/Brave or set `full_content_results` to 0.
+6. **Model Deduplication**: When multiple sources provide same model, use Map-based deduplication preferring direct connections.
 
-7. **Model Deduplication**: When multiple sources provide same model, use Map-based deduplication preferring direct connections.
+7. **Binary Dependencies**: `node_modules` in iCloud can break between Mac architectures. Delete and reinstall.
 
-8. **Binary Dependencies**: `node_modules` in iCloud can break between Mac architectures. Delete and reinstall.
+8. **Custom Endpoint Icons**: Models from custom endpoints may match name patterns (e.g., "claude"). Check `custom:` prefix first.
 
-9. **Custom Endpoint Icons**: Models from custom endpoints may match name patterns (e.g., "claude"). Check `custom:` prefix first.
+9. **Brainstorm Prompt Formatting**: Brainstorm prompts use `.format()` — curly braces in prompt text must be escaped as `{{` / `}}`.
 
 ## Data Flow
 
@@ -206,21 +210,34 @@ User Query (+ optional web search)
     ↓
 Stage 1: Parallel queries → Stream individual responses
     ↓
-Stage 2: Anonymize → Parallel peer rankings → Parse rankings
+Brainstorm Discussion:
+  for each cycle (up to brainstorm_max_cycles):
+    → Each model responds in turn (uses previous cycle's turns + all initial answers)
+    → Every 2 cycles: chairman summarizes + checks CONSENSUS: YES/NO
+    → Between cycles: optional user steering pause
+    → At max cycles: user decides extend (+2) or finalize
     ↓
-Calculate aggregate rankings
+Final Synthesis: Chairman drafts definitive answer
     ↓
-Stage 3: Chairman synthesis → Stream final answer
-    ↓
-Save conversation (stage1, stage2, stage3 only)
+Save conversation (stage1 + brainstorm turns/summaries/final)
 ```
 
-## Execution Modes
+## Brainstorm Mode
 
-Three modes control deliberation depth:
-- **Chat Only**: Stage 1 only (quick responses)
-- **Chat + Ranking**: Stages 1 & 2 (peer review without synthesis)
-- **Full Deliberation**: All 3 stages (default)
+The only execution mode. Key parameters:
+
+- **`brainstorm_max_cycles`** (2–10, default 4): Max discussion cycles before asking user to extend or finalize. Chairman summarizes every 2 cycles.
+- **`council_temperature`** (default 0.5): Controls creativity of council member turns
+- **`chairman_temperature`** (default 0.4): Controls chairman summaries and final synthesis
+
+**SSE event sequence**: `brainstorm_start` → `brainstorm_init` → `brainstorm_cycle_start` → `brainstorm_turn_start/complete` (×N models) → `brainstorm_summary_start/complete` (every 2 cycles) → optionally `brainstorm_await_input` / `brainstorm_await_final_decision` → `brainstorm_complete` → `brainstorm_final_start` → `brainstorm_final_complete`
+
+**Brainstorm-specific endpoints**:
+```
+POST /api/conversations/{id}/brainstorm/steer         — submit steering input
+POST /api/conversations/{id}/brainstorm/final_decision — 'extend' or 'finalize'
+POST /api/conversations/{id}/chairman_followup         — follow-up chat after discussion
+```
 
 ## Testing & Debugging
 
@@ -249,8 +266,8 @@ curl https://your-endpoint.com/v1/models -H "Authorization: Bearer $API_KEY"
 
 **UI Sections** (sidebar navigation):
 1. **LLM API Keys**: OpenRouter, Groq, Ollama, Direct providers, Custom endpoint
-2. **Council Config**: Model selection with Remote/Local toggles, temperature controls, "I'm Feeling Lucky" randomizer
-3. **System Prompts**: Stage 1/2/3 prompts with reset-to-default
+2. **Council Config**: Model selection with Remote/Local toggles, temperature controls, brainstorm cycle count, "I'm Feeling Lucky" randomizer
+3. **System Prompts**: 4 tabs — Stage 1, Discussion Turn, Summary, Final Statement — each with reset-to-default
 4. **Search Providers**: DuckDuckGo, Tavily, Brave + Jina full content settings
 5. **Backup & Reset**: Import/Export config, reset to defaults
 
@@ -260,24 +277,34 @@ curl https://your-endpoint.com/v1/models -H "Authorization: Bearer $API_KEY"
 - UX flow: Test → Success → Auto-save → Clear input → "Settings saved!"
 
 **Temperature Controls**:
-- Council Heat: Stage 1 creativity (default: 0.5)
-- Chairman Heat: Stage 3 synthesis (default: 0.4)
-- Stage 2 Heat: Peer ranking consistency (default: 0.3)
+- Council Heat: Stage 1 + discussion turn creativity (default: 0.5)
+- Chairman Heat: Summaries + final synthesis (default: 0.4)
 
-**Rate Limit Warnings**:
-- Formula: `(council_members × 2) + 2` requests per council run
-- OpenRouter free tier: 20 RPM, 50 requests/day
-- Groq: 30 RPM, 14,400 requests/day
+**System Prompt Variables**:
+
+| Prompt | Variables |
+|--------|-----------|
+| Stage 1 | `{user_query}`, `{search_context_block}` |
+| Discussion Turn | `{user_query}`, `{initial_answers}`, `{discussion_history}`, `{model_name}`, `{cycle}` |
+| Summary | `{user_query}`, `{initial_answers}`, `{previous_summaries}`, `{recent_discussion}`, `{cycle}` |
+| Final Statement | `{user_query}`, `{initial_answers}`, `{discussion_history}`, `{summaries_text}`, `{reason}` |
+
+**Rate Limit Estimates** (per brainstorm run with N council members, C cycles):
+- Stage 1: N calls
+- Discussion turns: N × C calls
+- Summaries: floor(C/2) calls (chairman, every 2 cycles)
+- Final synthesis: 1 call
+- Total ≈ `N × (C + 1) + floor(C/2) + 1`
 
 **Storage**: `data/settings.json`
 
 ## Design Principles
 
 - **Graceful Degradation**: Single model failure doesn't block entire council
-- **Transparency**: All raw outputs inspectable via tabs
-- **De-anonymization**: Models receive "Response A/B/C", frontend displays real names
-- **Progress Indicators**: "X/Y completed" during streaming
+- **Transparency**: All raw outputs inspectable (initial perspectives collapsible, cycle cards expandable)
+- **Progress Indicators**: Cycle/model progress during streaming
 - **Provider Flexibility**: Mix cloud, local, and custom endpoints freely
+- **User Steering**: Optional mid-discussion guidance injected into turn and summary prompts
 
 ## Code Safety Guidelines
 
@@ -296,6 +323,5 @@ curl https://your-endpoint.com/v1/models -H "Authorization: Bearer $API_KEY"
 
 - Model performance analytics over time
 - Export conversations to markdown/PDF
-- Custom ranking criteria (beyond accuracy/insight)
 - Backend caching for repeated queries
 - Multiple custom endpoints support

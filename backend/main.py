@@ -11,14 +11,15 @@ import json
 import asyncio
 
 from . import storage
-from .council import generate_conversation_title, generate_search_query, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings, brainstorm_discussion, brainstorm_synthesize_final, PROVIDERS
+from .council import generate_conversation_title, generate_search_query, stage1_collect_responses, brainstorm_discussion, brainstorm_synthesize_final, chairman_followup, PROVIDERS
 from .search import perform_web_search, SearchProvider
 from .settings import get_settings, update_settings, Settings, DEFAULT_COUNCIL_MODELS, DEFAULT_CHAIRMAN_MODEL, AVAILABLE_MODELS
 
 app = FastAPI(title="LLM Council Plus API")
 
-# In-memory dict for mid-stream brainstorm steering futures, keyed by conversation_id
+# In-memory dicts for mid-stream brainstorm futures, keyed by conversation_id
 BRAINSTORM_STEERING: dict[str, asyncio.Future] = {}
+BRAINSTORM_FINAL_DECISION: dict[str, asyncio.Future] = {}
 
 # Enable CORS for local development and network access
 # Allow requests from any hostname on ports 5173 and 3000 (frontend)
@@ -40,7 +41,6 @@ class SendMessageRequest(BaseModel):
     """Request to send a message in a conversation."""
     content: str
     web_search: bool = False
-    execution_mode: str = "full"  # 'chat_only', 'chat_ranking', 'full'
 
 
 class ConversationMetadata(BaseModel):
@@ -99,15 +99,7 @@ async def delete_conversation(conversation_id: str):
 
 @app.post("/api/conversations/{conversation_id}/message/stream")
 async def send_message_stream(conversation_id: str, body: SendMessageRequest, request: Request):
-    """Send a message and stream the 3-stage council process."""
-    # Validate execution_mode
-    valid_modes = ["chat_only", "chat_ranking", "full", "brainstorm"]
-    if body.execution_mode not in valid_modes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid execution_mode. Must be one of: {valid_modes}"
-        )
-    
+    """Send a message and stream the brainstorm council process."""
     # Check if conversation exists
     conversation = storage.get_conversation(conversation_id)
     if conversation is None:
@@ -118,12 +110,7 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
 
     async def event_generator():
         try:
-            # Initialize variables for metadata
             stage1_results = []
-            stage2_results = []
-            stage3_result = None
-            label_to_model = {}
-            aggregate_rankings = {}
             brainstorm_turns = []
             brainstorm_summaries = []
             brainstorm_status = None
@@ -216,116 +203,95 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
                 yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
                 return # Stop further processing
 
-            # Stage 2: Only if mode is 'chat_ranking' or 'full'
-            if body.execution_mode in ["chat_ranking", "full"]:
-                yield f"data: {json.dumps({'type': 'stage2_start'})}\n\n"
-                await asyncio.sleep(0.05)
-                
-                # Iterate over the async generator
-                async for item in stage2_collect_rankings(body.content, stage1_results, search_context, request):
-                    # First item is the label mapping
-                    if isinstance(item, dict) and not item.get('model'):
-                        label_to_model = item
-                        # Send init event with total count
-                        yield f"data: {json.dumps({'type': 'stage2_init', 'total': len(label_to_model)})}\n\n"
-                        continue
-                    
-                    # Subsequent items are results
-                    stage2_results.append(item)
-                    
-                    # Send progress update
-                    print(f"Stage 2 Progress: {len(stage2_results)}/{len(label_to_model)} - {item['model']}")
-                    yield f"data: {json.dumps({'type': 'stage2_progress', 'data': item, 'count': len(stage2_results), 'total': len(label_to_model)})}\n\n"
+            # Brainstorm: round-robin discussion until consensus
+            yield f"data: {json.dumps({'type': 'brainstorm_start'})}\n\n"
+            await asyncio.sleep(0.05)
+
+            async def _get_steering_input(cycle: int) -> str:
+                loop = asyncio.get_event_loop()
+                future = loop.create_future()
+                BRAINSTORM_STEERING[conversation_id] = future
+                try:
+                    return await asyncio.wait_for(future, timeout=300.0)
+                except asyncio.TimeoutError:
+                    return ""
+                finally:
+                    BRAINSTORM_STEERING.pop(conversation_id, None)
+
+            async def _get_final_decision() -> str:
+                loop = asyncio.get_event_loop()
+                future = loop.create_future()
+                BRAINSTORM_FINAL_DECISION[conversation_id] = future
+                try:
+                    return await asyncio.wait_for(future, timeout=600.0)
+                except asyncio.TimeoutError:
+                    return "finalize"
+                finally:
+                    BRAINSTORM_FINAL_DECISION.pop(conversation_id, None)
+
+            async for item in brainstorm_discussion(
+                body.content, stage1_results, request,
+                get_user_input=_get_steering_input,
+                get_final_decision=_get_final_decision,
+            ):
+                itype = item["type"]
+
+                if itype == "total":
+                    yield f"data: {json.dumps({'type': 'brainstorm_init', 'max_cycles': item['max_cycles'], 'model_count': item['model_count']})}\n\n"
+
+                elif itype == "cycle_start":
+                    yield f"data: {json.dumps({'type': 'brainstorm_cycle_start', 'cycle': item['cycle']})}\n\n"
+
+                elif itype == "turn_start":
+                    yield f"data: {json.dumps({'type': 'brainstorm_turn_start', 'model': item['model'], 'cycle': item['cycle']})}\n\n"
+
+                elif itype == "turn_complete":
+                    turn_data = {k: v for k, v in item.items() if k != "type"}
+                    brainstorm_turns.append(turn_data)
+                    yield f"data: {json.dumps({'type': 'brainstorm_turn_complete', 'data': turn_data})}\n\n"
                     await asyncio.sleep(0.01)
 
-                aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
-                yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': {'label_to_model': label_to_model, 'aggregate_rankings': aggregate_rankings, 'search_query': search_query, 'search_context': search_context}})}\n\n"
-                await asyncio.sleep(0.05)
+                elif itype == "summary_start":
+                    yield f"data: {json.dumps({'type': 'brainstorm_summary_start', 'cycle': item['cycle']})}\n\n"
 
-            # Brainstorm mode: round-robin discussion until consensus
-            if body.execution_mode == "brainstorm":
-                yield f"data: {json.dumps({'type': 'brainstorm_start'})}\n\n"
-                await asyncio.sleep(0.05)
+                elif itype == "summary_complete":
+                    summary_data = {k: v for k, v in item.items() if k != "type"}
+                    brainstorm_summaries.append(summary_data)
+                    yield f"data: {json.dumps({'type': 'brainstorm_summary_complete', 'data': summary_data})}\n\n"
+                    await asyncio.sleep(0.05)
 
-                async def _get_steering_input(cycle: int) -> str:
-                    loop = asyncio.get_event_loop()
-                    future = loop.create_future()
-                    BRAINSTORM_STEERING[conversation_id] = future
-                    try:
-                        return await asyncio.wait_for(future, timeout=300.0)
-                    except asyncio.TimeoutError:
-                        return ""
-                    finally:
-                        BRAINSTORM_STEERING.pop(conversation_id, None)
+                elif itype == "await_user_input":
+                    yield f"data: {json.dumps({'type': 'brainstorm_await_input', 'cycle': item['cycle']})}\n\n"
 
-                async for item in brainstorm_discussion(
-                    body.content, stage1_results, request,
-                    get_user_input=_get_steering_input,
-                ):
-                    itype = item["type"]
+                elif itype == "user_input_received":
+                    entry = {k: v for k, v in item.items() if k != "type"}
+                    brainstorm_user_inputs.append(entry)
+                    yield f"data: {json.dumps({'type': 'brainstorm_user_input', 'data': entry})}\n\n"
 
-                    if itype == "total":
-                        yield f"data: {json.dumps({'type': 'brainstorm_init', 'max_cycles': item['max_cycles'], 'model_count': item['model_count']})}\n\n"
+                elif itype == "await_final_decision":
+                    yield f"data: {json.dumps({'type': 'brainstorm_await_final_decision', 'final_cycle': item['final_cycle']})}\n\n"
+                    await asyncio.sleep(0.1)  # ensure the SSE chunk is flushed before blocking
 
-                    elif itype == "cycle_start":
-                        yield f"data: {json.dumps({'type': 'brainstorm_cycle_start', 'cycle': item['cycle']})}\n\n"
+                elif itype == "cycles_extended":
+                    yield f"data: {json.dumps({'type': 'brainstorm_cycles_extended', 'new_max_cycles': item['new_max_cycles']})}\n\n"
 
-                    elif itype == "turn_start":
-                        yield f"data: {json.dumps({'type': 'brainstorm_turn_start', 'model': item['model'], 'cycle': item['cycle']})}\n\n"
+                elif itype == "done":
+                    brainstorm_status = "consensus" if item["consensus_reached"] else "max_cycles"
+                    brainstorm_done_reason = item["reason"]
+                    yield f"data: {json.dumps({'type': 'brainstorm_complete', 'consensus_reached': item['consensus_reached'], 'final_cycle': item['final_cycle'], 'reason': item['reason']})}\n\n"
 
-                    elif itype == "turn_complete":
-                        turn_data = {k: v for k, v in item.items() if k != "type"}
-                        brainstorm_turns.append(turn_data)
-                        yield f"data: {json.dumps({'type': 'brainstorm_turn_complete', 'data': turn_data})}\n\n"
-                        await asyncio.sleep(0.01)
+            # Final synthesis after discussion ends
+            if await request.is_disconnected():
+                raise asyncio.CancelledError("Client disconnected")
 
-                    elif itype == "summary_start":
-                        yield f"data: {json.dumps({'type': 'brainstorm_summary_start', 'cycle': item['cycle']})}\n\n"
+            yield f"data: {json.dumps({'type': 'brainstorm_final_start'})}\n\n"
+            await asyncio.sleep(0.05)
 
-                    elif itype == "summary_complete":
-                        summary_data = {k: v for k, v in item.items() if k != "type"}
-                        brainstorm_summaries.append(summary_data)
-                        yield f"data: {json.dumps({'type': 'brainstorm_summary_complete', 'data': summary_data})}\n\n"
-                        await asyncio.sleep(0.05)
-
-                    elif itype == "await_user_input":
-                        yield f"data: {json.dumps({'type': 'brainstorm_await_input', 'cycle': item['cycle']})}\n\n"
-
-                    elif itype == "user_input_received":
-                        entry = {k: v for k, v in item.items() if k != "type"}
-                        brainstorm_user_inputs.append(entry)
-                        yield f"data: {json.dumps({'type': 'brainstorm_user_input', 'data': entry})}\n\n"
-
-                    elif itype == "done":
-                        brainstorm_status = "consensus" if item["consensus_reached"] else "max_cycles"
-                        brainstorm_done_reason = item["reason"]
-                        yield f"data: {json.dumps({'type': 'brainstorm_complete', 'consensus_reached': item['consensus_reached'], 'final_cycle': item['final_cycle'], 'reason': item['reason']})}\n\n"
-
-                # Final synthesis after discussion ends
-                if await request.is_disconnected():
-                    raise asyncio.CancelledError("Client disconnected")
-
-                yield f"data: {json.dumps({'type': 'brainstorm_final_start'})}\n\n"
-                await asyncio.sleep(0.05)
-
-                brainstorm_final = await brainstorm_synthesize_final(
-                    body.content, stage1_results, brainstorm_turns, brainstorm_summaries, brainstorm_done_reason,
-                    user_inputs=brainstorm_user_inputs,
-                )
-                yield f"data: {json.dumps({'type': 'brainstorm_final_complete', 'data': brainstorm_final})}\n\n"
-
-            # Stage 3: Only if mode is 'full'
-            if body.execution_mode == "full":
-                yield f"data: {json.dumps({'type': 'stage3_start'})}\n\n"
-                await asyncio.sleep(0.05)
-
-                # Check for disconnect before starting Stage 3
-                if await request.is_disconnected():
-                    print("Client disconnected before Stage 3")
-                    raise asyncio.CancelledError("Client disconnected")
-
-                stage3_result = await stage3_synthesize_final(body.content, stage1_results, stage2_results, search_context)
-                yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
+            brainstorm_final = await brainstorm_synthesize_final(
+                body.content, stage1_results, brainstorm_turns, brainstorm_summaries, brainstorm_done_reason,
+                user_inputs=brainstorm_user_inputs,
+            )
+            yield f"data: {json.dumps({'type': 'brainstorm_final_complete', 'data': brainstorm_final})}\n\n"
 
             # Wait for title generation if it was started
             if title_task:
@@ -337,15 +303,7 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
                     print(f"Error waiting for title task: {e}")
 
             # Save complete assistant message with metadata
-            metadata = {
-                "execution_mode": body.execution_mode,  # Save mode for historical context
-            }
-            
-            # Only include stage2/stage3 metadata if they were executed
-            if body.execution_mode in ["chat_ranking", "full"]:
-                metadata["label_to_model"] = label_to_model
-                metadata["aggregate_rankings"] = aggregate_rankings
-            
+            metadata = {}
             if search_context:
                 metadata["search_context"] = search_context
             if search_query:
@@ -354,14 +312,14 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
             storage.add_assistant_message(
                 conversation_id,
                 stage1_results,
-                stage2_results if body.execution_mode in ["chat_ranking", "full"] else None,
-                stage3_result if body.execution_mode == "full" else None,
+                None,
+                None,
                 metadata,
-                brainstorm_turns=brainstorm_turns if body.execution_mode == "brainstorm" else None,
-                brainstorm_summaries=brainstorm_summaries if body.execution_mode == "brainstorm" else None,
-                brainstorm_status=brainstorm_status if body.execution_mode == "brainstorm" else None,
-                brainstorm_final=brainstorm_final if body.execution_mode == "brainstorm" else None,
-                brainstorm_user_inputs=brainstorm_user_inputs if body.execution_mode == "brainstorm" and brainstorm_user_inputs else None,
+                brainstorm_turns=brainstorm_turns,
+                brainstorm_summaries=brainstorm_summaries,
+                brainstorm_status=brainstorm_status,
+                brainstorm_final=brainstorm_final,
+                brainstorm_user_inputs=brainstorm_user_inputs if brainstorm_user_inputs else None,
             )
 
             # Send completion event
@@ -408,6 +366,52 @@ async def brainstorm_steer(conversation_id: str, request: Request):
     return {"ok": False, "error": "No active steering request"}
 
 
+@app.post("/api/conversations/{conversation_id}/brainstorm/final_decision")
+async def brainstorm_final_decision(conversation_id: str, request: Request):
+    """Resolve the pending final-decision future with 'extend' or 'finalize'."""
+    body = await request.json()
+    action = (body.get("action") or "finalize").strip()
+    future = BRAINSTORM_FINAL_DECISION.get(conversation_id)
+    if future and not future.done():
+        future.set_result(action)
+        return {"ok": True}
+    return {"ok": False, "error": "No active final decision request"}
+
+
+class ChairmanFollowupRequest(BaseModel):
+    message: str
+    chat_history: List[Dict] = []
+
+
+@app.post("/api/conversations/{conversation_id}/chairman_followup")
+async def chairman_followup_endpoint(conversation_id: str, body: ChairmanFollowupRequest):
+    """Chairman answers a follow-up question using full brainstorm context."""
+    conv = storage.get_conversation(conversation_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    last_assistant = next(
+        (m for m in reversed(conv["messages"]) if m.get("role") == "assistant"),
+        None,
+    )
+    user_query = next(
+        (m["content"] for m in conv["messages"] if m.get("role") == "user"),
+        "",
+    )
+
+    brainstorm_context = {
+        "user_query": user_query,
+        "stage1_results": last_assistant.get("stage1", []) if last_assistant else [],
+        "turns": last_assistant.get("brainstorm_turns", []) if last_assistant else [],
+        "summaries": last_assistant.get("brainstorm_summaries", []) if last_assistant else [],
+        "final_response": (last_assistant.get("brainstorm_final") or {}).get("response", "") if last_assistant else "",
+    }
+
+    result = await chairman_followup(body.message, brainstorm_context, body.chat_history)
+    storage.append_chairman_followup(conversation_id, body.message, result)
+    return result
+
+
 class UpdateSettingsRequest(BaseModel):
     """Request to update settings."""
     search_provider: Optional[str] = None
@@ -448,18 +452,15 @@ class UpdateSettingsRequest(BaseModel):
     # Temperature Settings
     council_temperature: Optional[float] = None
     chairman_temperature: Optional[float] = None
-    stage2_temperature: Optional[float] = None
-
-    # Execution Mode
-    execution_mode: Optional[str] = None
 
     # Brainstorm
     brainstorm_max_cycles: Optional[int] = None
 
     # System Prompts
     stage1_prompt: Optional[str] = None
-    stage2_prompt: Optional[str] = None
-    stage3_prompt: Optional[str] = None
+    brainstorm_turn_prompt: Optional[str] = None
+    brainstorm_summary_prompt: Optional[str] = None
+    brainstorm_final_prompt: Optional[str] = None
 
 
 
@@ -512,18 +513,15 @@ async def get_app_settings():
         # Temperature Settings
         "council_temperature": settings.council_temperature,
         "chairman_temperature": settings.chairman_temperature,
-        "stage2_temperature": settings.stage2_temperature,
 
         # Prompts
         "stage1_prompt": settings.stage1_prompt,
-        "stage2_prompt": settings.stage2_prompt,
-        "stage3_prompt": settings.stage3_prompt,
+        "brainstorm_turn_prompt": settings.brainstorm_turn_prompt,
+        "brainstorm_summary_prompt": settings.brainstorm_summary_prompt,
+        "brainstorm_final_prompt": settings.brainstorm_final_prompt,
 
         # Brainstorm
         "brainstorm_max_cycles": settings.brainstorm_max_cycles,
-
-        # Execution Mode
-        "execution_mode": settings.execution_mode,
     }
 
 
@@ -533,9 +531,9 @@ async def get_default_settings():
     """Get default model settings."""
     from .prompts import (
         STAGE1_PROMPT_DEFAULT,
-        STAGE2_PROMPT_DEFAULT,
-        STAGE3_PROMPT_DEFAULT,
-        TITLE_PROMPT_DEFAULT
+        BRAINSTORM_TURN_PROMPT_DEFAULT,
+        BRAINSTORM_SUMMARY_PROMPT_DEFAULT,
+        BRAINSTORM_FINAL_PROMPT_DEFAULT,
     )
     from .settings import DEFAULT_ENABLED_PROVIDERS
     return {
@@ -543,8 +541,9 @@ async def get_default_settings():
         "chairman_model": DEFAULT_CHAIRMAN_MODEL,
         "enabled_providers": DEFAULT_ENABLED_PROVIDERS,
         "stage1_prompt": STAGE1_PROMPT_DEFAULT,
-        "stage2_prompt": STAGE2_PROMPT_DEFAULT,
-        "stage3_prompt": STAGE3_PROMPT_DEFAULT,
+        "brainstorm_turn_prompt": BRAINSTORM_TURN_PROMPT_DEFAULT,
+        "brainstorm_summary_prompt": BRAINSTORM_SUMMARY_PROMPT_DEFAULT,
+        "brainstorm_final_prompt": BRAINSTORM_FINAL_PROMPT_DEFAULT,
     }
 
 
@@ -595,10 +594,12 @@ async def update_app_settings(request: UpdateSettingsRequest):
     # Prompt updates
     if request.stage1_prompt is not None:
         updates["stage1_prompt"] = request.stage1_prompt
-    if request.stage2_prompt is not None:
-        updates["stage2_prompt"] = request.stage2_prompt
-    if request.stage3_prompt is not None:
-        updates["stage3_prompt"] = request.stage3_prompt
+    if request.brainstorm_turn_prompt is not None:
+        updates["brainstorm_turn_prompt"] = request.brainstorm_turn_prompt
+    if request.brainstorm_summary_prompt is not None:
+        updates["brainstorm_summary_prompt"] = request.brainstorm_summary_prompt
+    if request.brainstorm_final_prompt is not None:
+        updates["brainstorm_final_prompt"] = request.brainstorm_final_prompt
 
     if request.serper_api_key is not None:
         updates["serper_api_key"] = request.serper_api_key
@@ -673,18 +674,6 @@ async def update_app_settings(request: UpdateSettingsRequest):
         updates["council_temperature"] = request.council_temperature
     if request.chairman_temperature is not None:
         updates["chairman_temperature"] = request.chairman_temperature
-    if request.stage2_temperature is not None:
-        updates["stage2_temperature"] = request.stage2_temperature
-
-    # Execution Mode
-    if request.execution_mode is not None:
-        valid_modes = ["chat_only", "chat_ranking", "full", "brainstorm"]
-        if request.execution_mode not in valid_modes:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid execution_mode. Must be one of: {valid_modes}"
-            )
-        updates["execution_mode"] = request.execution_mode
 
     # Brainstorm
     if request.brainstorm_max_cycles is not None:
@@ -737,14 +726,12 @@ async def update_app_settings(request: UpdateSettingsRequest):
 
         # Prompts
         "stage1_prompt": settings.stage1_prompt,
-        "stage2_prompt": settings.stage2_prompt,
-        "stage3_prompt": settings.stage3_prompt,
+        "brainstorm_turn_prompt": settings.brainstorm_turn_prompt,
+        "brainstorm_summary_prompt": settings.brainstorm_summary_prompt,
+        "brainstorm_final_prompt": settings.brainstorm_final_prompt,
 
         # Brainstorm
         "brainstorm_max_cycles": settings.brainstorm_max_cycles,
-
-        # Execution Mode
-        "execution_mode": settings.execution_mode,
     }
 
 

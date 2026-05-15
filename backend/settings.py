@@ -62,8 +62,9 @@ AVAILABLE_MODELS = [
 
 from .prompts import (
     STAGE1_PROMPT_DEFAULT,
-    STAGE2_PROMPT_DEFAULT,
-    STAGE3_PROMPT_DEFAULT
+    BRAINSTORM_TURN_PROMPT_DEFAULT,
+    BRAINSTORM_SUMMARY_PROMPT_DEFAULT,
+    BRAINSTORM_FINAL_PROMPT_DEFAULT,
 )
 
 class Settings(BaseModel):
@@ -106,8 +107,7 @@ class Settings(BaseModel):
     # Temperature Settings
     council_temperature: float = 0.5
     chairman_temperature: float = 0.4
-    stage2_temperature: float = 0.3  # Lower for consistent ranking output
-    
+
     # Remote/Local filters
     council_member_filters: Optional[Dict[int, str]] = None
     chairman_filter: Optional[str] = None
@@ -118,11 +118,9 @@ class Settings(BaseModel):
 
     # System Prompts
     stage1_prompt: str = STAGE1_PROMPT_DEFAULT
-    stage2_prompt: str = STAGE2_PROMPT_DEFAULT
-    stage3_prompt: str = STAGE3_PROMPT_DEFAULT
-    
-    # Execution Mode
-    execution_mode: str = "full"  # Default execution mode: 'chat_only', 'chat_ranking', 'full', 'brainstorm'
+    brainstorm_turn_prompt: str = BRAINSTORM_TURN_PROMPT_DEFAULT
+    brainstorm_summary_prompt: str = BRAINSTORM_SUMMARY_PROMPT_DEFAULT
+    brainstorm_final_prompt: str = BRAINSTORM_FINAL_PROMPT_DEFAULT
 
     # Brainstorm Mode
     brainstorm_max_cycles: int = 4  # Max discussion cycles (2-10); chairman summarizes every 2

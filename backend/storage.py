@@ -300,6 +300,32 @@ def add_error_message(conversation_id: str, error_text: str):
     save_conversation(conversation)
 
 
+def append_chairman_followup(conversation_id: str, user_message: str, chairman_result: Dict[str, Any]):
+    """Append a chairman follow-up exchange to the last assistant message."""
+    conversation = get_conversation(conversation_id)
+    if conversation is None:
+        raise ValueError(f"Conversation {conversation_id} not found")
+
+    last_assistant = next(
+        (m for m in reversed(conversation["messages"]) if m.get("role") == "assistant"),
+        None,
+    )
+    if last_assistant is None:
+        raise ValueError("No assistant message found in conversation")
+
+    entry = {
+        "role_user": user_message,
+        "role_chairman": chairman_result.get("response", ""),
+        "model": chairman_result.get("model", ""),
+        "error": chairman_result.get("error", False),
+    }
+    if "brainstorm_chairman_chat" not in last_assistant:
+        last_assistant["brainstorm_chairman_chat"] = []
+    last_assistant["brainstorm_chairman_chat"].append(entry)
+
+    save_conversation(conversation)
+
+
 def update_conversation_title(conversation_id: str, title: str):
     """
     Update the title of a conversation.

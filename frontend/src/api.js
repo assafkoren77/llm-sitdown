@@ -313,18 +313,49 @@ export const api = {
   },
 
   /**
+   * Send final decision (extend or finalize) after max cycles reached.
+   */
+  async sendBrainstormFinalDecision(conversationId, action) {
+    const response = await fetch(
+      `${API_BASE}/api/conversations/${conversationId}/brainstorm/final_decision`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to send final decision');
+    return response.json();
+  },
+
+  /**
+   * Send a follow-up message to the chairman after a brainstorm.
+   */
+  async sendChairmanFollowup(conversationId, message, chatHistory) {
+    const response = await fetch(
+      `${API_BASE}/api/conversations/${conversationId}/chairman_followup`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, chat_history: chatHistory }),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to send chairman follow-up');
+    return response.json();
+  },
+
+  /**
    * Send a message and receive streaming updates.
    * @param {string} conversationId - The conversation ID
    * @param {Object} options - Message options
    * @param {string} options.content - The message content
    * @param {boolean} options.webSearch - Whether to use web search
-   * @param {string} options.executionMode - Execution mode: 'chat_only', 'chat_ranking', or 'full'
    * @param {function} onEvent - Callback function for each event: (eventType, data) => void
    * @param {AbortSignal} signal - Optional AbortSignal to cancel the request
    * @returns {Promise<void>}
    */
   async sendMessageStream(conversationId, options, onEvent, signal) {
-    const { content, webSearch = false, executionMode = 'full' } = options;
+    const { content, webSearch = false } = options;
     const response = await fetch(
       `${API_BASE}/api/conversations/${conversationId}/message/stream?_t=${Date.now()}`,
       {
@@ -333,7 +364,7 @@ export const api = {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        body: JSON.stringify({ content, web_search: webSearch, execution_mode: executionMode }),
+        body: JSON.stringify({ content, web_search: webSearch }),
         signal,
         cache: 'no-store',
       }
