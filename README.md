@@ -19,18 +19,9 @@ A council of LLMs takes turns reading the full discussion and contributing new p
 
 The result is a deliberation, not a vote: more thoroughly stress-tested answers for the questions where a single model's first instinct isn't good enough.
 
-<p align="center">
-  <div align="center">
-    <a href="https://www.youtube.com/watch?v=HOdyIyccOCE" target="_blank">
-      <img src="https://img.youtube.com/vi/HOdyIyccOCE/hqdefault.jpg" alt="LLM Sitdown Long Demo" width="48%">
-    </a>
-    <a href="https://www.youtube.com/watch?v=NUmQFGAwD3g" target="_blank">
-      <img src="https://img.youtube.com/vi/NUmQFGAwD3g/hqdefault.jpg" alt="LLM Sitdown Short Demo" width="48%">
-    </a>
-  </div>
-</p>
-
 ---
+
+![App Screenshot](images/deliberations.png)
 
 ## Installation
 
@@ -106,6 +97,8 @@ Then open **http://localhost:5173** and configure your API keys in Settings.
 
 ---
 
+![App Screenshot](images/final_statement.png)
+
 ## Features
 
 ### Multi-Provider Support
@@ -158,6 +151,8 @@ Fine-tune creativity vs consistency:
 <p align="center">
   <img width="849" alt="Council Configuration" src="https://github.com/user-attachments/assets/45880bee-1fec-4efc-b1cb-eceaabe071ff" />
 </p>
+
+![App Screenshot](images/cycles_config.png)
 
 ### Additional Features
 
